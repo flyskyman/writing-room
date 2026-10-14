@@ -260,12 +260,15 @@ func (r *Room) addDecisionLocked(m Message) MsDecision {
 // addCandidatesLocked 从代理回复 m 中取出 ```candidate 围栏块，登记为候选（依据 base 版本、裁定 dec）
 func (r *Room) addCandidatesLocked(m Message, turn string, base, dec int) int {
 	n := 0
+	seen := map[string]bool{} // 同一条回复里重复的候选块只登记一次
 	for _, b := range extractCodeBlocks(m.Text) {
-		if b.Lang != candidateLang || strings.TrimSpace(b.Code) == "" {
+		text := strings.TrimSpace(b.Code)
+		if b.Lang != candidateLang || text == "" || seen[text] {
 			continue
 		}
+		seen[text] = true
 		c := MsCandidate{ID: len(r.ms.Candidates) + 1, MsgID: m.ID, Turn: turn, Agent: m.From, Model: m.Model, Base: base, Decisions: dec,
-			Text: strings.TrimSpace(b.Code), Status: "pending", Time: m.Time}
+			Text: text, Status: "pending", Time: m.Time}
 		r.ms.Candidates = append(r.ms.Candidates, c)
 		n++
 	}

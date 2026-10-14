@@ -37,10 +37,10 @@ func TestManuscriptCandidateLifecycle(t *testing.T) {
 		t.Fatalf("prompt snapshot wrong: ver=%d dec=%d\n%s", ver, dec, b.String())
 	}
 	r.mu.Lock()
-	m := r.appendMessageLocked(Message{From: "claude", Kind: "chat", Model: "m", Turn: "turn-1", Text: "理由。\n```candidate\nIn this retrospective study, X was associated with Y.\n```\n```bash\necho no\n```"})
+	m := r.appendMessageLocked(Message{From: "claude", Kind: "chat", Model: "m", Turn: "turn-1", Text: "理由。\n```candidate\nIn this retrospective study, X was associated with Y.\n```\n```bash\necho no\n```\n重复：\n```candidate\nIn this retrospective study, X was associated with Y.\n```"})
 	n := r.addCandidatesLocked(m, "turn-1", 1, 0)
 	r.mu.Unlock()
-	if n != 1 {
+	if n != 1 { // bash 块不算；同一条回复里重复的候选块只登记一次
 		t.Fatalf("want 1 candidate, got %d", n)
 	}
 	snap := r.ManuscriptSnapshot()

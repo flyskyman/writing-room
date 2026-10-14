@@ -1377,7 +1377,7 @@ showSettingsTab(loadSettings().settingsTab || 'talk');
 // ---- 起動時のルールの編集（2026-10-02。rules.go） ----
 // 日本語（rules.md）と英語（rules.en.md）を切り替えて編集する。保存は［保存］を押したときだけ
 let rules = null; // GET /api/rules の結果（言語 → RulesInfo）
-let rulesLang = lang === 'en' ? 'en' : 'ja';
+let rulesLang = lang === 'ja' ? 'ja' : 'en'; // 中文界面也用 rules.en.md（服务端把 zh 当 en 投递）
 let rulesDirty = false; // 編集欄に保存していない変更がある
 $(`#settings input[name=rulesLang][value="${rulesLang}"]`).checked = true;
 function renderRules() {
@@ -1464,10 +1464,10 @@ function wordDiff(a, b) {
   return out;
 }
 function renderManuscript(m) {
-  ms = m || ms;
+  if (m) ms = { versions: m.versions || [], candidates: m.candidates || [], decisions: m.decisions || [] }; // Go 的空切片序列化为 null
   const cur = msCur();
   $('#msVer').textContent = cur ? `v${cur.id} · ${cur.time} · ${cur.source}${cur.note ? ' · ' + cur.note : ''}` : '（尚无版本）';
-  if (!msDirty && document.activeElement !== $('#msText')) $('#msText').value = cur ? cur.text : '';
+  if (!msDirty && document.activeElement !== $('#msText')) { $('#msText').value = cur ? cur.text : ''; $('#msNote').textContent = ''; }
   $('#msUndo').disabled = ms.versions.length < 2;
   $('#msExport').disabled = !cur;
   $('#msHistory').innerHTML = ms.versions.slice().reverse().map((v) => `<option value="${v.id}">v${v.id} · ${esc(v.source)}${v.note ? ' · ' + esc(v.note) : ''}</option>`).join('') || '<option value="">（无）</option>';
