@@ -606,7 +606,8 @@ function translateDom(root) {
     const key = orig.trim();
     n.nodeValue = orig.replace(key, t(key));
   }
-  for (const el of root.querySelectorAll('[title], [placeholder]')) {
+  for (const el of [root, ...root.querySelectorAll('[title], [placeholder]')]) {
+    if (!el.getAttribute) continue;
     if (!i18nOrig.has(el)) i18nOrig.set(el, { title: el.getAttribute('title'), placeholder: el.getAttribute('placeholder') });
     const o = i18nOrig.get(el);
     if (o.title && I18N_EN[o.title]) el.title = t(o.title);

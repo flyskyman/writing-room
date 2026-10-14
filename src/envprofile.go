@@ -192,7 +192,7 @@ func (r *Room) postProfileLocked() {
 	if r.envProfile == nil {
 		return
 	}
-	en := r.langLocked() == langEn
+	en := r.lang == langEn // zh 用中文框架（文案已译为中文），但规则文件沿用 langLocked（rules.en.md）
 	var legacy []string // 旧い置き場所から読んだファイル（作者に移してもらう）
 	rules, _, p, old := r.resolveRulesLocked(r.langLocked())
 	if old {
@@ -213,7 +213,7 @@ func (r *Room) postProfileLocked() {
 			"■ Participants\n- @human (the human): makes requests, checks and decides, and runs commands with [Run]. When you need the human to check, decide or do something, put @human in your message (it is collected under \"For you\" on the screen)\n- Agents: as listed under \"■ Agents\" below\n\n" +
 			"■ Agents (what each may do, declared by the human in %s in the config folder)\n%s\n\n■ Rules for this chat\n%s"
 	}
-	text := fmt.Sprintf(format, r.envProfile.text(r.langLocked()), r.workdir, capabilitiesFileName, caps, rules)
+	text := fmt.Sprintf(format, r.envProfile.text(pick(en, langEn, langJa)), r.workdir, capabilitiesFileName, caps, rules)
 	if len(legacy) > 0 {
 		// 旧い置き場所はエージェントが書き換えられる場所なので、作者に移してもらう
 		text += fmt.Sprintf(pick(en, "\n\n[Note] These files were read from the old location. Move them to the config folder (%s): %s",
