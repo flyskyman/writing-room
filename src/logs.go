@@ -21,14 +21,14 @@ type LogSummary struct {
 	Name    string `json:"name"`
 	Started string `json:"started"` // 最初の発言時刻
 	Updated string `json:"updated"` // 最後の発言時刻
-	Count   int    `json:"count"`   // 発言数（システムメッセージを除く）
-	Title   string `json:"title"`   // 人間の最初の発言
+	Count   int    `json:"count"`   // 発言数（系统メッセージを除く）
+	Title   string `json:"title"`   // 作者の最初の発言
 	Current bool   `json:"current"` // 現在の会話のログか
 }
 
 var (
 	logNameRe      = regexp.MustCompile(`^chat-\d{8}-\d{6}\.jsonl$`)
-	ErrLogNotFound = errors.New("ログが見つかりません")
+	ErrLogNotFound = errors.New("找不到日志")
 )
 
 func readLogFile(path string) ([]Message, error) {
@@ -139,7 +139,7 @@ func (r *Room) ReadLog(name string) ([]Message, error) {
 	return msgs, err
 }
 
-var ErrBranchPointNotFound = errors.New("分岐する発言が元のログにありません")
+var ErrBranchPointNotFound = errors.New("原日志里没有要分支的发言")
 
 // BranchFromLog は過去のログ name の発言 upto までを引き継いで、新しい会話を始める（案3）。
 // 元のログは読むだけで変更しない。引き継ぐ発言は ID・返信先をそのまま保ち、新しいログファイルに書き写す。
@@ -178,6 +178,6 @@ func (r *Room) BranchFromLog(name string, upto int) error {
 	r.saveSessionLocked()
 	r.log.Info("conversation.branch", "from", name, "upto", upto, "messages", len(msgs), "log_file", filepath.Base(r.logFile))
 	r.postProfileLocked()
-	r.postLocked("system", fmt.Sprintf("%s の #%d までを引き継いで、新しい会話を始めました。元のログは変更していません。", name, upto), "system")
+	r.postLocked("system", fmt.Sprintf("已带着 %s 到 #%d 为止的内容开始新对话。原日志未改。", name, upto), "system")
 	return nil
 }

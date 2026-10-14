@@ -36,18 +36,18 @@ func waitPidFile(t *testing.T, path string) int {
 	return 0
 }
 
-// 時間切れで終了させるとき、CLI が起動した孫プロセスも残さない
+// 超时で終了させるとき、CLI が起動した孫プロセスも残さない
 func TestRunProcessKillsGrandchildren(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "pid")
 	ctx := withTurnTimeout(context.Background(), time.Second)
 	start := time.Now()
 	_, err := runProcess(ctx, "sh", []string{"-c", "sleep 60 & echo $! > " + pidFile + "; wait"}, "", t.TempDir())
 	if err == nil {
-		t.Fatal("時間切れにならない")
+		t.Fatal("超时にならない")
 	}
 	// 孫プロセスが出力をつかんだまま残ると、それが自然に終わるまで戻らない
 	if d := time.Since(start); d > 10*time.Second {
-		t.Fatalf("時間切れのあと戻るまで %v かかった（孫プロセスを終了させていない）", d)
+		t.Fatalf("超时のあと戻るまで %v かかった（孫プロセスを終了させていない）", d)
 	}
 	pid := waitPidFile(t, pidFile)
 	time.Sleep(200 * time.Millisecond)

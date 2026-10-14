@@ -23,7 +23,7 @@ func TestQuotaNotFromStdout(t *testing.T) {
 	}
 }
 
-// 利用枠の上限エラーで自動的に一時停止になり、宛先・進行役から外れる。人間の操作で戻る
+// 利用枠の上限エラーで自動的に一時停止になり、宛先・進行役から外れる。作者の操作で戻る
 func TestAutoPauseOnQuotaError(t *testing.T) {
 	r, a := newTestRoom(t)
 	a.Adapter = quotaErrAdapter{}
@@ -69,7 +69,7 @@ func TestIsQuotaError(t *testing.T) {
 		"RESOURCE_EXHAUSTED: quota":             true,
 		"agy: Rate limit reached for requests":  true,
 		"exit status 1: file not found":         false,
-		"中断されました":                               false,
+		"已中断":                               false,
 	} {
 		if got := isQuotaError(msg); got != want {
 			t.Errorf("%q: got %v", msg, got)

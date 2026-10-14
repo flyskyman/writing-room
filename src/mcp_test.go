@@ -43,12 +43,12 @@ func TestSetModelByAgent(t *testing.T) {
 	if _, err := r.setModelByAgent("tok", "m2"); err != nil || a.modelSel != "m2" {
 		t.Fatalf("同じジョブからの続けての変更ができない: %v", err)
 	}
-	// ジョブ実行中に人間が変更したら、そのジョブからの要求は拒否する
+	// ジョブ実行中に作者が変更したら、そのジョブからの要求は拒否する
 	if err := r.SetAgentModel("x", "m1"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.setModelByAgent("tok", "m2"); err == nil || a.modelSel != "m1" {
-		t.Fatal("人間の変更を古いジョブが上書きした")
+		t.Fatal("作者の変更を古いジョブが上書きした")
 	}
 	// 会話のリセット後は拒否する
 	r.jobs["tok2"] = &jobTicket{agentID: "x", gen: r.gen, modelVer: a.modelVer}
@@ -159,7 +159,7 @@ func TestReplyHasReadUpTo(t *testing.T) {
 	if last.From != "x" || last.ReadUpTo != first {
 		t.Fatalf("返答の既読位置 = %d, want %d (%+v)", last.ReadUpTo, first, last)
 	}
-	if got := formatDelta(last); got != fmt.Sprintf("[#%d x（#%d まで読了）]: 了解", last.ID, first) {
+	if got := formatDelta(last); got != fmt.Sprintf("[#%d x（读到 #%d）]: 了解", last.ID, first) {
 		t.Fatalf("formatDelta = %q", got)
 	}
 }

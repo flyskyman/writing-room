@@ -109,9 +109,9 @@ func TestStartInteractive(t *testing.T) {
 	if err := r.StartInteractive("x"); !errors.Is(err, ErrInteractiveRunning) {
 		t.Fatalf("二重に起動した: %v", err)
 	}
-	// 窓が閉じたことを検知できる環境（Windows）では［対話を終了］を受け付けない
+	// 窓が閉じたことを検知できる環境（Windows）では［结束交互］を受け付けない
 	if err := r.EndInteractive("x"); !errors.Is(err, ErrInteractiveNoEnd) {
-		t.Fatalf("自動で検知できるのに対話を終了にできた: %v", err)
+		t.Fatalf("自动検知できるのに対話を終了にできた: %v", err)
 	}
 	deadline := time.Now().Add(20 * time.Second)
 	for {
@@ -145,7 +145,7 @@ func (s *manualSession) Wait() (int, error) {
 	return -1, errConsoleStopped
 }
 
-// 案9（macOS・Linux）: 窓が閉じたことを検知できない環境では、画面に［対話を終了］を出し、押すと会話に戻す
+// 案9（macOS・Linux）: 窓が閉じたことを検知できない環境では、画面に［结束交互］を出し、押すと会話に戻す
 func TestEndInteractive(t *testing.T) {
 	r, a := newTestRoom(t)
 	oldStart, oldOK := startConsole, interactiveOK
@@ -168,7 +168,7 @@ func TestEndInteractive(t *testing.T) {
 	st := r.statusLocked().Agents[0]
 	opened := r.messages[len(r.messages)-1].Text
 	r.mu.Unlock()
-	if !st.Interactive || !st.InteractiveManual || !strings.Contains(opened, "［対話を終了］") {
+	if !st.Interactive || !st.InteractiveManual || !strings.Contains(opened, "［结束交互］") {
 		t.Fatalf("状態 %#v / 通知 %q", st, opened)
 	}
 	if err := r.EndInteractive("x"); err != nil {
@@ -183,11 +183,11 @@ func TestEndInteractive(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("［対話を終了］で会話に戻らない")
+			t.Fatal("［结束交互］で会話に戻らない")
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if m := lastMessage(r); !strings.Contains(m.Text, "終了にしました") {
+	if m := lastMessage(r); !strings.Contains(m.Text, "已结束") {
 		t.Fatalf("終了の通知 %q", m.Text)
 	}
 }

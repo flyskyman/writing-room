@@ -125,7 +125,7 @@ func (s *fileSession) Wait() (int, error) {
 		if b, err := os.ReadFile(s.done); err == nil && len(b) > 0 {
 			code, err := strconv.Atoi(strings.TrimSpace(string(b)))
 			if err != nil {
-				return -1, errors.New("終了コードを読めません")
+				return -1, errors.New("无法读取退出码")
 			}
 			return code, nil
 		}

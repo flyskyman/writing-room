@@ -44,7 +44,7 @@ func TestBranchFromLog(t *testing.T) {
 		t.Fatalf("新しいログファイルになっていない: %s", r.logFile)
 	}
 	if len(r.messages) != 3 || r.messages[0].ID != src[0].ID || r.messages[1].ID != src[1].ID ||
-		r.messages[1].Text != src[1].Text || !strings.Contains(r.messages[2].Text, "#2 までを引き継いで") {
+		r.messages[1].Text != src[1].Text || !strings.Contains(r.messages[2].Text, "到 #2 为止") {
 		t.Fatalf("引き継いだ発言: %+v", r.messages)
 	}
 	if len(r.messages[1].Blocks) != 0 {

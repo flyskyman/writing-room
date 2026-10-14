@@ -101,7 +101,7 @@ func TestRotateSessionMinutesFailed(t *testing.T) {
 	defer r.mu.Unlock()
 	found := false
 	for _, m := range r.messages {
-		found = found || strings.Contains(m.Text, "議事録の作成に失敗しました")
+		found = found || strings.Contains(m.Text, "生成纪要失败")
 	}
 	if !found || a.rotatePending || r.lastMinutes != nil {
 		t.Fatalf("失敗の通知または予約の取り消しがない: found=%v pending=%v", found, a.rotatePending)

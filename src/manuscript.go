@@ -1,6 +1,6 @@
 package main
 
-// 稿件工作台（2026-10-14 人間の依頼。医学写作）。
+// 稿件工作台（2026-10-14 作者の依頼。医学写作）。
 // 应用层权威状态：稿件版本、修改候选、作者裁定。存在 logs/manuscript.json，与会话（chat-*.jsonl）分开保存。
 // 每轮把当前版本与有效裁定冻结进提示词；代理只返回候选（```candidate 围栏块），正式写入只在作者接受后由本程序完成。
 // 每次调用留下上下文清单（logs/context.jsonl）与输入记录（logs/prompts/）。
@@ -383,7 +383,7 @@ func (room *Room) handlePutManuscript(w http.ResponseWriter, r *http.Request) {
 		Base int    `json:"base"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
 		return
 	}
 	v, err := room.SetManuscript(body.Text, body.Note, body.Base)
@@ -397,7 +397,7 @@ func (room *Room) handleAcceptCandidate(w http.ResponseWriter, r *http.Request) 
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
 		return
 	}
 	v, err := room.AcceptCandidate(id, body.Base, body.Text)

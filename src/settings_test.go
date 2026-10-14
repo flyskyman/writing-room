@@ -52,7 +52,7 @@ func TestSettingsLoadMissingLeader(t *testing.T) {
 	}
 }
 
-// 人間が選んだモデルは保存して再起動後に戻す。エージェントが自分で変えたモデルは保存しない（案2）
+// 作者が選んだモデルは保存して再起動後に戻す。エージェントが自分で変えたモデルは保存しない（案2）
 func TestSettingsAgentModel(t *testing.T) {
 	logDir := t.TempDir()
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -73,7 +73,7 @@ func TestSettingsAgentModel(t *testing.T) {
 	r2, a2 := newRoom()
 	r2.LoadSettings(nil)
 	if a2.modelSel != "m1" || a2.humanModel != "m1" {
-		t.Fatalf("人間の選択が戻らない: sel=%q human=%q", a2.modelSel, a2.humanModel)
+		t.Fatalf("作者の選択が戻らない: sel=%q human=%q", a2.modelSel, a2.humanModel)
 	}
 
 	// 既定に戻したら、保存からも消える

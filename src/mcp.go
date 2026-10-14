@@ -20,7 +20,7 @@ var selfToolURL string
 const selfToolName = "set_my_model"
 
 // redactedToken はログ・発言・画面でジョブ用トークンの代わりに表示する文字列
-const redactedToken = "[ジョブ用トークン]"
+const redactedToken = "[作业令牌]"
 
 // jobTicket は実行中のジョブ1件。ジョブの終了時に削除する（削除後のトークンは無効）
 type jobTicket struct {
@@ -68,13 +68,13 @@ func (r *Room) handleMCP(w http.ResponseWriter, req *http.Request) {
 	case "tools/list":
 		writeRPC(w, m.ID, map[string]any{"tools": append([]any{map[string]any{
 			"name": selfToolName,
-			"description": "AI Agent Room グループチャットで、あなた自身が次の発言から使うモデルを切り替えます。" +
-				"作業内容と利用状況を見て、必要なときだけ呼んでください。token には依頼文で渡されたジョブ用トークンを指定します。",
+			"description": "在 AI Agent Room 群聊中，切换你自己下一条发言起使用的模型。" +
+				"根据工作内容和用量，只在必要时调用。token 填写请求正文里给出的作业令牌。",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"token": map[string]any{"type": "string", "description": "依頼文で渡されたジョブ用トークン"},
-					"model": map[string]any{"type": "string", "description": "モデルの候補のいずれか。空文字なら CLI の既定のモデルに戻す"},
+					"token": map[string]any{"type": "string", "description": "请求正文里给出的作业令牌"},
+					"model": map[string]any{"type": "string", "description": "模型候选之一。空字符串则恢复 CLI 默认模型"},
 				},
 				"required": []string{"token", "model"},
 			},
@@ -133,14 +133,14 @@ func writeRPC(w http.ResponseWriter, id json.RawMessage, result any, e *rpcError
 }
 
 // setModelByAgent はエージェント自身からのモデル変更要求を検証して適用する。
-// 受付条件: トークンが実行中のジョブのもの・世代が一致・起動後に人間がモデルを変更していない・候補にあるモデル
+// 受付条件: トークンが実行中のジョブのもの・世代が一致・起動後に作者がモデルを変更していない・候補にあるモデル
 func (r *Room) setModelByAgent(token, model string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t, ok := r.jobs[token]
 	if !ok {
 		r.log.Warn("agent.model.set.rejected", "reason", "invalid_token")
-		return "", fmt.Errorf("トークンが無効です（ジョブが終了しているか、誤ったトークンです）")
+		return "", fmt.Errorf("token 无效（作业已结束或 token 错误）")
 	}
 	a := r.agent(t.agentID)
 	// 不正なモデル名にトークンが含まれ得るので、ログ・応答では伏せる
@@ -152,17 +152,17 @@ func (r *Room) setModelByAgent(token, model string) (string, error) {
 	switch {
 	case t.gen != r.gen:
 		log.Warn("agent.model.set.rejected", "reason", "generation")
-		return "", fmt.Errorf("会話がリセットまたは停止されたため受け付けられません")
+		return "", fmt.Errorf("对话已重置或停止，不予受理")
 	case t.modelVer != a.modelVer:
 		log.Warn("agent.model.set.rejected", "reason", "version")
-		return "", fmt.Errorf("このジョブの起動後にモデル設定が変更されたため受け付けられません")
+		return "", fmt.Errorf("本作业启动后模型设置已更改，不予受理")
 	case model != "" && !slices.ContainsFunc(a.Adapter.Models(), func(o ModelOption) bool { return o.ID == model }):
 		log.Warn("agent.model.set.rejected", "reason", "not_candidate")
-		return "", fmt.Errorf("%q はモデルの候補にありません", shown)
+		return "", fmt.Errorf("%q 不在模型候选里", shown)
 	}
 	if a.modelSel != model {
 		r.applyModelLocked(a, model, "agent")
 	}
 	t.modelVer = a.modelVer // 同じジョブからの続けての変更は受け付ける
-	return fmt.Sprintf("次の発言から %s を使います。", firstNonEmpty(model, "既定のモデル")), nil
+	return fmt.Sprintf("下一条发言起使用 %s。", firstNonEmpty(model, "默认模型")), nil
 }

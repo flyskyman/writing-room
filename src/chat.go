@@ -4,12 +4,12 @@ package main
 // エージェントは1人ずつ順番に発言し、前の発言を読んだうえで答える。
 //
 // 発言者の決め方は2通り:
-//   - チャット: 人間やエージェントの @メンションで発言待ちキューに入ったエージェントが発言する。
+//   - チャット: 作者やエージェントの @メンションで発言待ちキューに入ったエージェントが発言する。
 //     1回の発言で呼ばれたエージェント（@all・宛先なしなら全員）は同時に起動し、
 //     互いの回答は次のターンで新着として受け取る
 //   - ディスカッション: お題に対して、参加エージェントが決まった順番で指定周回数だけ発言する
 // どちらも、エージェントの発言が終わってから次のエージェントを起動するまで delay だけ待つ。
-// 待機中に人間が発言すれば、その内容は次のエージェントに渡される。
+// 待機中に作者が発言すれば、その内容は次のエージェントに渡される。
 
 import (
 	"context"
@@ -40,13 +40,13 @@ type Message struct {
 	// ReadUpTo はエージェントの返答が読んでいた最後の発言ID。返答を書いている間に届いた発言
 	// （ReadUpTo より後）は反映されていないので、行き違いの見分けに使う
 	ReadUpTo int `json:"read_upto,omitempty"`
-	// ReplyTo は人間が「返信」で投稿したときの、返信先の発言ID（案 8）。
+	// ReplyTo は作者が「返信」で投稿したときの、返信先の発言ID（案 8）。
 	// command_result では、実行開始の system の発言のID（その発言の reply_to が、実行したブロックを含む発言）
 	ReplyTo int `json:"reply_to,omitempty"`
 	// Blocks は本文中のコードブロック（修正案 7.1）。画面はこの添字で［実行］ボタンを付け、実行 API もこの添字で本文を取り直す。
 	// chat の発言だけに付ける。再起動で戻した発言からは外す（実行済みかを再起動後に判別できないため）
 	Blocks []CodeBlock `json:"blocks,omitempty"`
-	// Retry は、ターンの失敗を知らせるシステムメッセージに付ける、もう一度起動できるエージェントID（案 8.3）。
+	// Retry は、ターンの失敗を知らせる系统メッセージに付ける、もう一度起動できるエージェントID（案 8.3）。
 	// 失敗時は cursor を進めていないので、同じ新着をそのまま渡し直せる
 	Retry string `json:"retry,omitempty"`
 	// Turn 是产生这条代理回复的轮次 ID（上下文清单 logs/context.jsonl 用它查）
@@ -68,20 +68,20 @@ type Agent struct {
 	state         string     // idle / thinking / unavailable
 	since         time.Time  // thinking 開始時刻
 	model         string     // 直近のターンで使われたモデル
-	modelSel      string     // 画面で選ばれたモデル（空なら CLI の既定）
-	humanModel    string     // 人間が画面で選んだモデル（案2）。設定に保存して再起動後に戻す。エージェントが set_my_model で変えた分は含めない
+	modelSel      string     // 画面で選ばれたモデル（空なら CLI 默认）
+	humanModel    string     // 作者が画面で選んだモデル（案2）。設定に保存して再起動後に戻す。エージェントが set_my_model で変えた分は含めない
 	waitUntil     time.Time  // フリートークで発言を考え始める予定時刻（state が waiting のとき）
 	activity      string     // 考え中に実行しているツール（CLI の出力から取り出した途中経過）
 	editing       []string   // このターンで書き込んだファイル（作業中の担当。ターンの終わりに外す）
 	paused        bool       // 一時停止中（会話に参加させない）。利用枠の上限エラーで自動的に入る
 	interactive   bool       // 対話モードの窓を開いている（案9。会話に参加させない。保存しない）
-	permission    string     // 人間が選んだ権限の段階（案8。permission.go。空なら既定）
+	permission    string     // 作者が選んだ権限の段階（案8。permission.go。空なら既定）
 	usage         UsageTotal // トークン使用量の累計（logs/usage.json に保持）
 	quota         Quota      // プランの残り利用枠（logs/usage.json に保持。取得できない CLI は空）
 	quotaTried    time.Time  // 直近に利用枠の取得を試みた時刻
 	quotaBusy     bool       // 利用枠を取得中
 	modelVer      int        // モデル設定の版番号（変更のたびに増える）。古いジョブからの変更要求で上書きしないために使う
-	lastInput     int        // 直近1回の実行の文脈の大きさ（最後の API 呼び出しの入力。取れない CLI は実行全体の入力。キャッシュ分を含む。取得できなければ前回の値のまま）
+	lastInput     int        // 直近1回の実行の文脈の大きさ（最後の API 呼び出しの入力。取れない CLI は実行全体の入力。缓存分を含む。取得できなければ前回の値のまま）
 	sessionStart  int        // 今の CLI セッションに最初に渡した発言のID（使用量を取得できない CLI の切り替え判定に使う）
 	rotatePending bool       // CLI セッションの切り替えを予約済み（次のターンの開始時に切り替える）
 	timeoutSec    int        // このエージェントの1ターンの上限時間（秒）。0 なら会話全体の設定に従う（案 8.3）
@@ -117,9 +117,9 @@ type AgentStatus struct {
 	Interactive bool `json:"interactive,omitempty"`
 	// InteractiveOK は対話モードの窓を開けるか（CLI が対応し、窓を表示できる環境）
 	InteractiveOK bool `json:"interactive_ok,omitempty"`
-	// InteractiveManual は、窓が閉じたことを自動で検知できないため［対話を終了］を出すか（macOS・Linux）
+	// InteractiveManual は、窓が閉じたことを自动検知できないため［対話を終了］を出すか（macOS・Linux）
 	InteractiveManual bool `json:"interactive_manual,omitempty"`
-	// Permission は人間が選んだ権限の段階（空なら既定）。PermissionOK は段階を選べる CLI か。
+	// Permission は作者が選んだ権限の段階（空なら既定）。PermissionOK は段階を選べる CLI か。
 	// PermissionOverride は、段階を選んだために *_ARGS から外している権限のオプション（案8）
 	Permission         string   `json:"permission,omitempty"`
 	PermissionOK       bool     `json:"permission_ok,omitempty"`
@@ -167,7 +167,7 @@ type Event struct {
 	Leases []Lease `json:"leases,omitempty"`
 	// Command は command イベントで配信する、状態が変わった1件
 	Command *CommandRun `json:"command,omitempty"`
-	// CommandLeaderOnly が true なら、進行役（と人間）の発言のブロックだけが実行できる
+	// CommandLeaderOnly が true なら、進行役（と作者）の発言のブロックだけが実行できる
 	CommandLeaderOnly bool `json:"command_leader_only"`
 	// OS は AI Agent Room が動いている OS（runtime.GOOS）。Windows 以外では cmd・bat のブロックを実行できない
 	OS string `json:"os"`
@@ -186,7 +186,7 @@ type Room struct {
 	free              *FreeTalk   // フリートーク中なら非nil
 	cond              *sync.Cond  // 新しい発言・停止をフリートークの待機ループに知らせる（mu と組で使う）
 	lastPost          time.Time   // 最後の発言時刻
-	hops              int         // 直近の人間の発言以降に行われたエージェントのターン数（チャット時）
+	hops              int         // 直近の作者の発言以降に行われたエージェントのターン数（チャット時）
 	maxHops           int
 	delay             time.Duration // エージェントの発言後、次のエージェントを起動するまでの待ち時間
 	leader            string        // 進行役のエージェントID（未指定は空）。「新しい会話」でも保持する
@@ -210,10 +210,10 @@ type Room struct {
 	jobs              map[string]*jobTicket  // 実行中のジョブ（キーはジョブ用トークン）。自己管理ツールの呼び出し元の識別に使う
 	commands          map[string]*CommandRun // コードブロックの実行状態（キーは "発言ID:ブロック番号"）。今の会話で実行したものすべて
 	cmdRunning        map[string]*CommandRun // 実行中のコマンド（commandKey → 実行。同時に commandMaxRunning 件まで）
-	commandLeaderOnly bool                   // 進行役（と人間）の発言のブロックだけを実行できる
+	commandLeaderOnly bool                   // 進行役（と作者）の発言のブロックだけを実行できる
 	envProfile        *envInfo               // 起動時に調べた環境（新しい会話の先頭に載せる。nil なら載せない）
 	lang              string                 // 言語の設定（"ja" / "en"。空は未設定で日本語）。環境とルールの投稿の文面に使う
-	configDir         string                 // 人間が編集する設定のフォルダ（rules.md・capabilities.json。%LOCALAPPDATA%\ai-agent-room\config）
+	configDir         string                 // 作者が編集する設定のフォルダ（rules.md・capabilities.json。%LOCALAPPDATA%\ai-agent-room\config）
 	legacyConfigDir   string                 // 設定ファイルの旧い置き場所（実行ファイルのフォルダ）。configDir になければ読む
 	leases            map[string]*Lease      // 共有物の貸し出し（キーは名前）。「新しい会話」でも保持する
 	ms                Manuscript             // 稿件工作台的权威状态（manuscript.go）。「新しい会話」でも保持する
@@ -352,9 +352,9 @@ func (r *Room) appendMessageLocked(m Message) Message {
 	name := from
 	switch from {
 	case "human":
-		name = "人間"
+		name = "作者"
 	case "system":
-		name = "システム"
+		name = "系统"
 	default:
 		if a := r.agent(from); a != nil {
 			name = a.Name
@@ -457,18 +457,18 @@ func (r *Room) startPumpLocked() {
 // ---- 操作（HTTP ハンドラから呼ばれる） ----------------------------------------------
 
 var (
-	ErrEmptyMessage   = errors.New("メッセージが空です")
-	ErrInvalidReply   = errors.New("返信先の発言がありません")
-	ErrEmptyTopic     = errors.New("お題が空です")
-	ErrNoAgents       = errors.New("参加できるエージェントがいません")
-	ErrDiscussionBusy = errors.New("ディスカッションまたはフリートーク中です。停止してから開始してください")
-	ErrAgentNotFound  = errors.New("エージェントが見つかりません")
-	ErrInvalidModel   = errors.New("モデル名が不正です")
-	ErrAgentNoLeader  = errors.New("参加できないエージェントは進行役にできません")
-	ErrInvalidWorkdir = errors.New("作業ディレクトリが見つかりません")
+	ErrEmptyMessage   = errors.New("消息为空")
+	ErrInvalidReply   = errors.New("没有要回复的发言")
+	ErrEmptyTopic     = errors.New("话题为空")
+	ErrNoAgents       = errors.New("没有可参与的代理")
+	ErrDiscussionBusy = errors.New("讨论或自由谈进行中。请先停止再开始")
+	ErrAgentNotFound  = errors.New("找不到代理")
+	ErrInvalidModel   = errors.New("模型名无效")
+	ErrAgentNoLeader  = errors.New("不能参与的代理不能当主持")
+	ErrInvalidWorkdir = errors.New("找不到工作目录")
 )
 
-// PostHuman は人間の発言を追加する。
+// PostHuman は作者の発言を追加する。
 // チャット時は宛先のエージェントを同時に起動する（宛先なし / @all なら全員）。
 // ディスカッション中は発言順を変えず、次の発言者が新着として受け取る。
 func (r *Room) PostHuman(text string) (Message, error) {
@@ -485,12 +485,12 @@ func (r *Room) hasMessageLocked(id int) bool {
 	return false
 }
 
-// PostHumanReply は人間の発言を投稿する。replyTo が 0 でなければ、その発言への返信として投稿する（案 8）
+// PostHumanReply は作者の発言を投稿する。replyTo が 0 でなければ、その発言への返信として投稿する（案 8）
 func (r *Room) PostHumanReply(text string, replyTo int) (Message, error) {
 	return r.PostHumanDecision(text, replyTo, false)
 }
 
-// PostHumanDecision 投稿人間の発言。decision 为 true 时记为作者裁定（manuscript.go）：
+// PostHumanDecision 投稿作者の発言。decision 为 true 时记为作者裁定（manuscript.go）：
 // 正在进行的轮次被取消（其 cursor 不前进，下一轮会连同裁定一起收到），未开始的轮次用新状态
 func (r *Room) PostHumanDecision(text string, replyTo int, decision bool) (Message, error) {
 	text = strings.TrimSpace(text)
@@ -512,7 +512,7 @@ func (r *Room) PostHumanDecision(text string, replyTo int, decision bool) (Messa
 	}
 	r.checkRotateLocked()
 	if r.free != nil {
-		// フリートーク中は各エージェントが新着を見て自分から発言する。人間の発言で発言数の上限をリセットする。
+		// フリートーク中は各エージェントが新着を見て自分から発言する。作者の発言で発言数の上限をリセットする。
 		// 宛先（@ID）がなければ全員、あれば宛先の人だけが考え始める（freeTalkAddressedLocked）
 		r.hops = 0
 		r.free.limitNotified = false
@@ -555,7 +555,7 @@ func (r *Room) StartDiscussion(topic string, rounds int) (Message, error) {
 	for i, id := range order {
 		names[i] = "@" + id
 	}
-	r.postLocked("system", fmt.Sprintf("ディスカッション開始: %s の順に最大%d周発言します。1周の間に全員がパスしたら終了します。",
+	r.postLocked("system", fmt.Sprintf("讨论开始: 按 %s 的顺序最多发言 %d 轮。一轮内全员 pass 则结束。",
 		strings.Join(names, " → "), rounds), "system")
 	r.disc = &Discussion{Topic: topic, Order: order, Round: 1, MaxRounds: rounds, Next: order[0]}
 	r.log.Info("discussion.start", "rounds", rounds, "order", strings.Join(order, ","))
@@ -568,7 +568,7 @@ func (r *Room) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.stopLocked()
-	r.postLocked("system", "停止しました。", "system")
+	r.postLocked("system", "已停止。", "system")
 }
 
 func (r *Room) stopLocked() {
@@ -613,7 +613,7 @@ func (r *Room) resetLocked() {
 	r.pushStatusLocked()
 }
 
-// SetMaxHops は人間の発言1回あたりのエージェントの発言数の上限を変える。0 は無制限
+// SetMaxHops は作者の発言1回あたりのエージェントの発言数の上限を変える。0 は無制限
 func (r *Room) SetMaxHops(n int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -638,7 +638,7 @@ func hopLimitReached(hops, maxHops int) bool {
 	return maxHops > 0 && hops >= maxHops
 }
 
-// SetAgentModel はエージェントのモデルを変更する（空なら CLI の既定に戻す）。
+// SetAgentModel はエージェントのモデルを変更する（空なら CLI 默认に戻す）。
 // 次のターンから反映され、会話のセッションはそのまま引き継ぐ。
 func (r *Room) SetAgentModel(id, model string) error {
 	model = strings.TrimSpace(model)
@@ -657,7 +657,7 @@ func (r *Room) SetAgentModel(id, model string) error {
 		r.applyModelLocked(a, model, "human")
 	}
 	r.mu.Unlock()
-	if saved { // 人間の選択だけを保存する（案2）
+	if saved { // 作者の選択だけを保存する（案2）
 		r.SaveSettings()
 	}
 	return nil
@@ -667,13 +667,13 @@ func (r *Room) SetAgentModel(id, model string) error {
 func (r *Room) applyModelLocked(a *Agent, model, by string) {
 	a.modelSel = model
 	a.modelVer++
-	label := firstNonEmpty(model, "既定のモデル")
+	label := firstNonEmpty(model, "默认模型")
 	r.log.Info("agent.model.set", "agent", a.ID, "model", model, "by", by, "model_ver", a.modelVer)
 	who := ""
 	if by == "agent" {
-		who = "（本人の判断）"
+		who = "（本人决定）"
 	}
-	r.postLocked("system", fmt.Sprintf("%s のモデルを %s に変更しました%s（次の発言から反映）。", a.Name, label, who), "system")
+	r.postLocked("system", fmt.Sprintf("%s 的模型已改为 %s%s（下一条发言起生效）。", a.Name, label, who), "system")
 	r.pushStatusLocked()
 }
 
@@ -729,12 +729,12 @@ func (r *Room) SetWorkdir(path string) error {
 	if r.restoreWorkdirLocked() {
 		r.saveSessionLocked()
 		r.broadcastLocked(Event{Type: "snapshot", Messages: r.messages})
-		r.postLocked("system", fmt.Sprintf("作業ディレクトリを %s に変更し、このディレクトリの前回の会話を復元しました。", abs), "system")
+		r.postLocked("system", fmt.Sprintf("工作目录已改为 %s，并恢复了该目录上次的对话。", abs), "system")
 		r.postProfileLocked()
 		r.pushStatusLocked()
 		return nil
 	}
-	r.postLocked("system", fmt.Sprintf("作業ディレクトリを %s に変更し、新しい会話を始めました。", abs), "system")
+	r.postLocked("system", fmt.Sprintf("工作目录已改为 %s，开始新对话。", abs), "system")
 	r.postProfileLocked()
 	return nil
 }
@@ -759,9 +759,9 @@ func (r *Room) SetLeader(id string) error {
 	r.leader = id
 	r.log.Info("room.leader.set", "leader", id)
 	if id == "" {
-		r.postLocked("system", "進行役の指定を解除しました（次の発言から反映）。", "system")
+		r.postLocked("system", "已取消主持指定（下一条发言起生效）。", "system")
 	} else {
-		r.postLocked("system", fmt.Sprintf("進行役を %s に指定しました（次の発言から反映）。", r.agent(id).Name), "system")
+		r.postLocked("system", fmt.Sprintf("已指定 %s 为主持（下一条发言起生效）。", r.agent(id).Name), "system")
 	}
 	r.pushStatusLocked()
 	return nil
@@ -794,7 +794,7 @@ func (r *Room) pump() {
 		if r.disc == nil && hopLimitReached(r.hops, r.maxHops) {
 			r.queue = nil
 			r.running = false
-			r.postLocked("system", fmt.Sprintf("自動ターンの上限（%d）に達したので停止しました。続けるにはメッセージを送ってください。", r.maxHops), "system")
+			r.postLocked("system", fmt.Sprintf("已达自动轮数上限（%d），已停止。要继续请发送消息。", r.maxHops), "system")
 			r.pushStatusLocked()
 			r.mu.Unlock()
 			return
@@ -878,9 +878,9 @@ func (r *Room) advanceDiscussionLocked(id string, outcome turnOutcome) {
 	}
 	switch {
 	case d.passes == len(d.Order):
-		r.endDiscussionLocked("全員がパスしたので、ディスカッションを終了しました。", "all_passed")
+		r.endDiscussionLocked("全员 pass，讨论结束。", "all_passed")
 	case d.Round >= d.MaxRounds:
-		r.endDiscussionLocked(fmt.Sprintf("%d周が終わったので、ディスカッションを終了しました。続ける場合はもう一度開始してください。", d.MaxRounds), "max_rounds")
+		r.endDiscussionLocked(fmt.Sprintf("%d 轮已结束，讨论结束。要继续请再次开始。", d.MaxRounds), "max_rounds")
 	default:
 		d.Round++
 		d.idx, d.passes = 0, 0
@@ -959,7 +959,7 @@ func (r *Room) runTurn(ctx context.Context, a *Agent) turnOutcome {
 	log.Info("agent.turn.start", "session_id", sessionID, "model_sel", modelSel, "new_messages", len(delta), "prompt_chars", len([]rune(prompt)), "timeout", timeout.String())
 	start := time.Now()
 	live := r.liveFor(a.ID)
-	live.add("info", fmt.Sprintf("=== %s 開始（モデル: %s、新着 %d件、上限 %v） ===", turnID, firstNonEmpty(modelSel, "既定"), len(delta), timeout))
+	live.add("info", fmt.Sprintf("=== %s 开始（模型: %s，新消息 %d 条，时限 %v） ===", turnID, firstNonEmpty(modelSel, "默认"), len(delta), timeout))
 	// 別窓に渡す行はすべてここを通し、ジョブ用トークンを伏せる（tool_use の引数やエラー文に含まれ得る）
 	sink := func(stream, line string) { live.add(stream, strings.ReplaceAll(line, token, redactedToken)) }
 	ctx = withTurnTimeout(ctx, timeout)
@@ -1002,9 +1002,9 @@ func (r *Room) runTurn(ctx context.Context, a *Agent) turnOutcome {
 		}
 	}
 	if err != nil {
-		sink("info", fmt.Sprintf("=== %s 失敗（%.1f秒）: %v ===", turnID, time.Since(start).Seconds(), err))
+		sink("info", fmt.Sprintf("=== %s 失败（%.1f 秒）: %v ===", turnID, time.Since(start).Seconds(), err))
 	} else {
-		live.add("info", fmt.Sprintf("=== %s 終了（%.1f秒） ===", turnID, time.Since(start).Seconds()))
+		live.add("info", fmt.Sprintf("=== %s 结束（%.1f 秒） ===", turnID, time.Since(start).Seconds()))
 	}
 
 	r.mu.Lock()
@@ -1073,7 +1073,7 @@ func (r *Room) runTurn(ctx context.Context, a *Agent) turnOutcome {
 	log.Info("agent.turn.end", "session_id", a.sessionID, "model", res.Model, "reply_chars", len([]rune(reply)), "latency_ms", latency)
 	if reply == "" || passRe.MatchString(reply) {
 		if r.free == nil { // フリートークでは様子見を表示しない（会話が流れにくくなるため）
-			r.postModelLocked(a.ID, res.Model, "（パス）", "pass", readUpTo)
+			r.postModelLocked(a.ID, res.Model, "（pass）", "pass", readUpTo)
 		}
 		r.postFileVersionsLocked(fileVers)
 		r.pushStatusLocked()
@@ -1097,7 +1097,7 @@ func (r *Room) runTurn(ctx context.Context, a *Agent) turnOutcome {
 	return outcomeSpoke
 }
 
-// postFileVersionsLocked は、ターンの間に変わったファイルの一覧をシステムメッセージで添える（なければ何もしない）。
+// postFileVersionsLocked は、ターンの間に変わったファイルの一覧を系统メッセージで添える（なければ何もしない）。
 func (r *Room) postFileVersionsLocked(text string) {
 	if text != "" {
 		r.postLocked("system", text, "system")
@@ -1108,10 +1108,10 @@ func (r *Room) postFileVersionsLocked(text string) {
 func formatDelta(m Message) string {
 	var notes []string
 	if m.ReplyTo > 0 {
-		notes = append(notes, fmt.Sprintf("#%d への返信", m.ReplyTo))
+		notes = append(notes, fmt.Sprintf("回复 #%d", m.ReplyTo))
 	}
 	if m.ReadUpTo > 0 {
-		notes = append(notes, fmt.Sprintf("#%d まで読了", m.ReadUpTo))
+		notes = append(notes, fmt.Sprintf("读到 #%d", m.ReadUpTo))
 	}
 	if len(notes) > 0 {
 		return fmt.Sprintf("[#%d %s（%s）]: %s", m.ID, m.From, strings.Join(notes, "、"), m.Text)
@@ -1131,69 +1131,69 @@ func (r *Room) buildPrompt(a *Agent, delta []Message, token, minutesPath string)
 				others = append(others, fmt.Sprintf("@%s（%s）", o.ID, o.Name))
 			}
 		}
-		fmt.Fprintf(&b, "あなたは「%s」(@%s) として、人間と複数のAIエージェントのグループチャットに参加しています。\n", a.Name, a.ID)
-		fmt.Fprintf(&b, "参加者: 人間(@human)、%s\n\n", strings.Join(others, "、"))
-		b.WriteString("ルール:\n")
-		b.WriteString("- 「[#番号 名前]: 本文」の形式で渡されるのは、あなたが前回発言してからの新着メッセージです。\n")
-		b.WriteString("- あなたの返答はそのままチャットに投稿されます。名前の接頭辞は付けず、本文だけを書いてください。\n")
-		b.WriteString("- 通常のチャットでは、他のエージェントに意見や作業を求めたいときに @ID で呼びかけると、呼ばれた相手が次に発言します。必要がなければ呼びかけないでください。他の参加者の発言に触れるだけなら @ を付けずに名前で書いてください。\n")
-		b.WriteString("- 全員への呼びかけには全員が同時に回答します。他のエージェントの回答は、次に発言するときに新着として届きます。\n")
-		b.WriteString("- ディスカッション中は発言順が決まっています（[system] のメッセージで通知されます）。\n")
-		b.WriteString("- フリートーク中は、全員が新着を見て、話したいときに自由に発言します。発言に @ID の呼びかけがあれば呼ばれた相手（@human なら人間）だけが、なければ全員が次の発言を考えます。特定の人に任せたいときだけ @ID で呼びかけてください。\n")
-		b.WriteString("- 簡潔に、会話で使われている言語で答えてください。\n")
-		b.WriteString("- 付け加えることが特にない場合は [pass] とだけ返してください。\n")
-		fmt.Fprintf(&b, "- 作業ディレクトリ: %s\n\n", r.workdir)
+		fmt.Fprintf(&b, "你以「%s」(@%s) 的身份参加作者与多个 AI 代理的群聊。\n", a.Name, a.ID)
+		fmt.Fprintf(&b, "参与者: 作者(@human)、%s\n\n", strings.Join(others, "、"))
+		b.WriteString("规则:\n")
+		b.WriteString("- 以「[#编号 名字]: 正文」形式给出的，是你上次发言之后的新消息。\n")
+		b.WriteString("- 你的回复会原样发到聊天里。不要加名字前缀，只写正文。\n")
+		b.WriteString("- 普通聊天中，想请其他代理发表意见或做事时用 @ID 呼叫，被叫者接着发言。没必要就不要呼叫。只是提到别人的发言时，直接写名字，不加 @。\n")
+		b.WriteString("- 向全员提问时，全员同时回答。其他代理的回答会在你下次发言时作为新消息送达。\n")
+		b.WriteString("- 讨论模式下发言顺序固定（由 [system] 消息通知）。\n")
+		b.WriteString("- 自由谈模式下，所有人看到新消息后想说就说。发言里 @ID 到谁，只有谁（@human 则是作者）考虑下一条发言；没有 @ 则全员考虑。只在要交给特定人时才 @ID。\n")
+		b.WriteString("- 回答简洁，使用对话所用的语言。\n")
+		b.WriteString("- 没有要补充的，就只回复 [pass]。\n")
+		fmt.Fprintf(&b, "- 工作目录: %s\n\n", r.workdir)
 	}
 	if minutesPath != "" {
-		b.WriteString("トークン消費を抑えるため、あなたの CLI セッションを切り替えました。これまでの会話は議事録にまとめてあります。\n")
-		fmt.Fprintf(&b, "- 議事録: %s\n", minutesPath)
-		b.WriteString("- 続きの作業に必要なら、まず議事録を読んでください。以下の新着には、直近の発言（あなた自身の発言を含む）を載せています。\n\n")
+		b.WriteString("为节省 token，已切换你的 CLI 会话。之前的对话已整理成纪要。\n")
+		fmt.Fprintf(&b, "- 纪要: %s\n", minutesPath)
+		b.WriteString("- 继续工作需要时请先读纪要。下面的新消息包含最近的发言（含你自己的）。\n\n")
 	}
-	b.WriteString("--- 新着メッセージ（#番号は発言ID。「#N まで読了」は、その発言が #N までを読んで書かれたことを示します。それより後の発言は反映されていません）---\n")
+	b.WriteString("--- 新消息（#编号是发言 ID。「读到 #N」表示该发言是在读到 #N 为止时写的，之后的发言未反映）---\n")
 	for i, m := range delta {
 		if i > 0 {
 			b.WriteString("\n\n")
 		}
 		b.WriteString(formatDelta(m))
 	}
-	b.WriteString("\n--- ここまで ---\n\n")
+	b.WriteString("\n--- 新消息到此 ---\n\n")
 	r.writeManuscriptPrompt(&b)
 	r.writeSelfStatus(&b, a, token)
 	r.writeLeader(&b, a)
 	r.writeEditingLocked(&b, a)
 	if d := r.disc; d != nil {
-		fmt.Fprintf(&b, "ディスカッション中です（第%d周／最大%d周）。お題: %s\n", d.Round, d.MaxRounds, d.Topic)
-		b.WriteString("他の参加者の意見に具体的に応じて、同意・反論・新しい論点・具体案のいずれかを述べてください。")
-		b.WriteString("既に出た内容の繰り返しは避け、議論が出尽くしたと思えば [pass] と返してください。\n")
+		fmt.Fprintf(&b, "讨论进行中（第 %d 轮／最多 %d 轮）。话题: %s\n", d.Round, d.MaxRounds, d.Topic)
+		b.WriteString("请具体回应其他参与者的意见，给出同意、反驳、新论点或具体方案之一。")
+		b.WriteString("避免重复已有内容；认为讨论已尽时回复 [pass]。\n")
 	}
 	if r.free != nil {
-		b.WriteString("フリートーク中です。雑談のように、話したいことがあれば自由に発言してください。")
-		b.WriteString("1〜3文程度で短く、会話のテンポを大切にしてください。質問・同意・反論・話題の展開どれでも構いません。")
-		b.WriteString("他の人が既に言ったことの繰り返しになる場合や、今は聞き役でよい場合は [pass] とだけ返してください（パスは表示されません）。\n")
+		b.WriteString("自由谈进行中。像闲聊一样，有想说的就自由发言。")
+		b.WriteString("1〜3 句即可，保持对话节奏。提问、同意、反驳、展开话题都行。")
+		b.WriteString("会重复别人已说的内容，或现在只需旁听时，只回复 [pass]（pass 不显示）。\n")
 	}
-	fmt.Fprintf(&b, "@%s として発言してください。", a.ID)
+	fmt.Fprintf(&b, "请以 @%s 的身份发言。", a.ID)
 	return b.String()
 }
 
 // writeSelfStatus はエージェントが自分で判断できるよう、利用状況とモデルの候補を添える
 func (r *Room) writeSelfStatus(b *strings.Builder, a *Agent, token string) {
-	b.WriteString("あなたの状況（AI Agent Room が記録）:\n")
-	fmt.Fprintf(b, "- 累積トークン消費: %s\n", a.usage.summary())
-	fmt.Fprintf(b, "- プランの残り利用枠: %s\n", a.quota.summary())
-	cur := firstNonEmpty(a.modelSel, "CLI の既定")
+	b.WriteString("你的状况（AI Agent Room 记录）:\n")
+	fmt.Fprintf(b, "- 累计 token 消耗: %s\n", a.usage.summary())
+	fmt.Fprintf(b, "- 套餐剩余额度: %s\n", a.quota.summary())
+	cur := firstNonEmpty(a.modelSel, "CLI 默认")
 	if a.model != "" {
-		cur += "（直近の実際のモデル: " + a.model + "）"
+		cur += "（最近实际使用的模型: " + a.model + "）"
 	}
-	fmt.Fprintf(b, "- 使用中のモデル: %s\n", cur)
+	fmt.Fprintf(b, "- 使用中的模型: %s\n", cur)
 	if ms := a.Adapter.Models(); len(ms) > 0 {
 		ids := make([]string, len(ms))
 		for i, m := range ms {
 			ids[i] = m.ID
 		}
-		fmt.Fprintf(b, "- モデルの候補（取得元: %s。アカウントで利用できるとは限りません）: %s\n",
+		fmt.Fprintf(b, "- 模型候选（来源: %s。不一定在账号里可用）: %s\n",
 			a.Adapter.ModelSource(), strings.Join(ids, ", "))
 		if selfToolURL != "" && a.Adapter.SelfTool() {
-			fmt.Fprintf(b, "- モデルの切替: 作業内容と利用状況を見て、必要なら AI Agent Room の %s ツールを token=%q で呼ぶと、次の発言から切り替わります（このトークンは今回の発言中だけ有効です。発言には書かないでください）。\n",
+			fmt.Fprintf(b, "- 切换模型: 根据工作内容和用量，必要时调用 AI Agent Room 的 %s 工具（token=%q），下一条发言起生效（该 token 只在本次发言内有效，不要写进发言）。\n",
 				selfToolName, token)
 		}
 	}
@@ -1210,12 +1210,12 @@ func (r *Room) writeLeader(b *strings.Builder, a *Agent) {
 		return
 	}
 	if l.ID == a.ID {
-		b.WriteString("進行役: あなたです。人間の依頼を作業に分けて担当を @ID で割り振り、未完了の作業がある間は次の担当と作業・完了条件を示してください。")
-		b.WriteString("人間の依頼の範囲内なら、進めるかどうかはあなたが判断して構いません。目的や範囲を変える判断が必要なときだけ人間に確認してください。")
-		b.WriteString("すべて完了したら、完了したことを伝えて止まってください。\n\n")
+		b.WriteString("主持: 是你。把作者的要求拆成工作并用 @ID 分配负责人；只要还有未完成的工作，就指明下一位负责人、工作内容和完成条件。")
+		b.WriteString("在作者要求范围内，是否推进由你判断。只有需要改变目的或范围时才向作者确认。")
+		b.WriteString("全部完成后，报告完成并停下。\n\n")
 		return
 	}
-	fmt.Fprintf(b, "進行役: @%s（%s）。作業の割り振りと、進めるかどうかの判断は進行役に従ってください。割り振られた作業は確認を待たずに進め、結果を報告してください。\n\n", l.ID, l.Name)
+	fmt.Fprintf(b, "主持: @%s（%s）。工作分配和是否推进听主持的。分配到的工作不必等确认，做完报告结果。\n\n", l.ID, l.Name)
 }
 
 // cleanReply はエージェントが付けてしまった「[claude]:」のような接頭辞を取り除く

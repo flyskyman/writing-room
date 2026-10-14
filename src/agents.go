@@ -34,10 +34,10 @@ var agentTypeOrder = []string{"claude", "codex", "agy"}
 const maxAgentsPerType = 5
 
 var (
-	ErrInvalidAgentType = errors.New("エージェントの種類が不正です")
-	ErrAgentsBusy       = errors.New("会話の進行中はエージェントを追加・削除できません。停止してから操作してください")
-	ErrAgentLimit       = errors.New("同じ種類のエージェントはこれ以上追加できません")
-	ErrAgentDefault     = errors.New("既定のエージェントは削除できません")
+	ErrInvalidAgentType = errors.New("代理类型无效")
+	ErrAgentsBusy       = errors.New("对话进行中不能添加或删除代理。请先停止")
+	ErrAgentLimit       = errors.New("同类代理不能再添加")
+	ErrAgentDefault     = errors.New("默认代理不能删除")
 )
 
 // agentSpec は logs/agents.json に保存するエージェント1つ分
@@ -149,7 +149,7 @@ func (r *Room) AddAgent(typ string) (*Agent, error) {
 	r.saveAgentsLocked()
 	r.saveSessionLocked()
 	r.log.Info("agents.add", "agent", a.ID, "type", typ, "available", a.state != "unavailable")
-	r.postLocked("system", fmt.Sprintf("%s（@%s）を追加しました。", a.Name, a.ID), "system")
+	r.postLocked("system", fmt.Sprintf("已添加 %s（@%s）。", a.Name, a.ID), "system")
 	r.pushStatusLocked()
 	go r.refreshQuota(a, true)
 	return a, nil
@@ -192,7 +192,7 @@ func (r *Room) removeAgent(id string) error {
 	r.saveSessionLocked()
 	r.saveUsageLocked()
 	r.log.Info("agents.remove", "agent", id)
-	r.postLocked("system", fmt.Sprintf("%s（@%s）を削除しました。", a.Name, a.ID), "system")
+	r.postLocked("system", fmt.Sprintf("已删除 %s（@%s）。", a.Name, a.ID), "system")
 	r.pushStatusLocked()
 	return nil
 }

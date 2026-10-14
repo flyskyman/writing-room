@@ -17,24 +17,24 @@ func TestSetLeaderAndPrompt(t *testing.T) {
 	if err := r.SetLeader("nobody"); !errors.Is(err, ErrAgentNotFound) {
 		t.Fatalf("存在しないエージェント: err = %v", err)
 	}
-	if p := r.buildPrompt(a, nil, "tok", ""); strings.Contains(p, "進行役:") {
+	if p := r.buildPrompt(a, nil, "tok", ""); strings.Contains(p, "主持:") {
 		t.Fatalf("未指定なのに進行役が書かれている: %q", p)
 	}
 	if err := r.SetLeader("x"); err != nil {
 		t.Fatal(err)
 	}
-	if p := r.buildPrompt(a, nil, "tok", ""); !strings.Contains(p, "進行役: あなたです。") {
+	if p := r.buildPrompt(a, nil, "tok", ""); !strings.Contains(p, "主持: 是你。") {
 		t.Fatalf("本人向けの進行役の説明がない: %q", p)
 	}
 	b := &Agent{ID: "y", Name: "Y", Adapter: fakeAdapter{}}
 	r.agents = append(r.agents, b)
-	if p := r.buildPrompt(b, nil, "tok", ""); !strings.Contains(p, "進行役: @x（X）。") {
+	if p := r.buildPrompt(b, nil, "tok", ""); !strings.Contains(p, "主持: @x（X）。") {
 		t.Fatalf("ほかのエージェント向けの進行役の説明がない: %q", p)
 	}
 	if err := r.SetLeader(""); err != nil {
 		t.Fatal(err)
 	}
-	if p := r.buildPrompt(a, nil, "tok", ""); strings.Contains(p, "進行役:") {
+	if p := r.buildPrompt(a, nil, "tok", ""); strings.Contains(p, "主持:") {
 		t.Fatalf("解除後も進行役が書かれている: %q", p)
 	}
 }

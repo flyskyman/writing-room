@@ -2,14 +2,14 @@ package main
 
 // エージェントから守るファイルと、その守り方（#1643〜#1649）。環境に依存するパスはコードに書かず、起動時に決める。
 //
-// A. 人間が編集する設定（rules.md、capabilities.json、protected.json、AI Agent Room の設定）は、
-//    AI Agent Room のフォルダ（defaultSecretDir。既定は OS ごとの標準の場所）の config に置く。
+// A. 作者が編集する設定（rules.md、capabilities.json、protected.json、AI Agent Room の設定）は、
+//    AI Agent Room 文件夹（defaultSecretDir。既定は OS ごとの標準の場所）の config に置く。
 //    旧い置き場所（実行ファイルのフォルダ）は、config にファイルがないときだけ読み、画面に警告を出す（移行が済んだら削除する）。
 // B. 禁止ルールを渡せる CLI（Claude Code）には、起動のたびに --settings で禁止ルールを渡す。
-//    - AI Agent Room のフォルダ: 読み書きとも禁止（認証トークン・設定・非公開の実行ログ）
+//    - AI Agent Room 文件夹: 読み書きとも禁止（認証トークン・設定・非公開の実行ログ）
 //    - 作業ディレクトリの .claude/・CLAUDE.md・GEMINI.md・AGENTS.md、ユーザーの Claude Code の設定、start.bat: 編集を禁止
 //      （hooks などで承認を通らずにコマンドを動かす経路、エージェントへの指示を書き換える経路を塞ぐ）
-//    - 人間が config/protected.json に足したパス: 編集を禁止
+//    - 作者が config/protected.json に足したパス: 編集を禁止
 //    許可を足す仕組みは持たない（エージェントが自分の許可を増やす経路を作らないため）。
 // C. 禁止ルールを渡せない CLI（Codex、agy など）の発言と、保護するパスを含むコードブロックは、
 //    画面で［実行］の前に必ず確認を出す（agents[].enforced、blocks[].protected）。
@@ -26,13 +26,13 @@ import (
 	"strings"
 )
 
-// configDirName は AI Agent Room のフォルダの下の、人間が編集する設定のフォルダ
+// configDirName は AI Agent Room 文件夹の下の、作者が編集する設定のフォルダ
 const configDirName = "config"
 
-// protectedFileName は、人間が保護するパスを足すファイル（config に置く）。例: {"paths": ["D:\\secrets", "~/.aws"]}
+// protectedFileName は、作者が保護するパスを足すファイル（config に置く）。例: {"paths": ["D:\\secrets", "~/.aws"]}
 const protectedFileName = "protected.json"
 
-// defaultConfigDir は人間が編集する設定のフォルダを返す
+// defaultConfigDir は作者が編集する設定のフォルダを返す
 func defaultConfigDir() string {
 	d, err := defaultSecretDir()
 	if err != nil {
@@ -64,7 +64,7 @@ func isFile(p string) bool {
 
 // Protection は起動時に決めた保護の内容
 type Protection struct {
-	SecretDir string   // 読み書きとも禁止（AI Agent Room のフォルダ）
+	SecretDir string   // 読み書きとも禁止（AI Agent Room 文件夹）
 	EditOnly  []string // 編集を禁止するファイル・フォルダ（フォルダは配下すべて）
 }
 
@@ -236,7 +236,7 @@ func enforcesDeny(a *Agent) bool {
 	return ok && e.EnforcesDeny()
 }
 
-// openConfigDir は設定フォルダを作ってファイルマネージャーで開く（人間が画面のボタンから使う）
+// openConfigDir は設定フォルダを作ってファイルマネージャーで開く（作者が画面のボタンから使う）
 func openConfigDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err

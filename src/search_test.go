@@ -80,7 +80,7 @@ func TestExportMarkdown(t *testing.T) {
 	r.mu.Lock()
 	r.postLocked("human", "おはよう", "chat")
 	r.appendMessageLocked(Message{From: "x", Kind: "chat", Text: "はい", Model: "opus", ReadUpTo: 1})
-	r.postLocked("system", "システムの通知", "system")
+	r.postLocked("system", "系统の通知", "system")
 	name := filepath.Base(r.logFile)
 	r.mu.Unlock()
 
@@ -88,12 +88,12 @@ func TestExportMarkdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExportMarkdown: %v", err)
 	}
-	for _, want := range []string{"# 会話ログ " + name, "## #1 人間", "## #2 X（opus）", "#1 まで読了", "［system］", "おはよう", "はい"} {
+	for _, want := range []string{"# 对话日志 " + name, "## #1 作者", "## #2 X（opus）", "读到 #1", "［system］", "おはよう", "はい"} {
 		if !strings.Contains(md, want) {
 			t.Fatalf("書き出しに %q が含まれていない:\n%s", want, md)
 		}
 	}
-	if !strings.Contains(md, "- 発言数: 2（システムメッセージを除く）/ 全 3 件") {
+	if !strings.Contains(md, "- 发言数: 2（不含系统消息）/ 共 3 条") {
 		t.Fatalf("件数の行が想定と違う:\n%s", md)
 	}
 
@@ -179,7 +179,7 @@ func TestListLogsCache(t *testing.T) {
 	logSummaryCache.m[path] = c
 	logSummaryCache.Unlock()
 	if got := title(); got != "覚えた題名" {
-		t.Fatalf("キャッシュが使われていない: %q", got)
+		t.Fatalf("缓存が使われていない: %q", got)
 	}
 	write("変更後の長い題名です") // サイズが変わる
 	if got := title(); got != "変更後の長い題名です" {

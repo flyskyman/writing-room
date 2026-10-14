@@ -17,7 +17,7 @@ type diagAdapter struct {
 
 func (d diagAdapter) versionCommand() (string, []string) { return d.bin, d.args }
 
-// 見つからない・起動に失敗・時間切れ・取得できた・非対応を区別する（案6）
+// 見つからない・起動に失敗・超时・取得できた・非対応を区別する（案6）
 func TestDiagnose(t *testing.T) {
 	saved := diagTimeout
 	diagTimeout = 2 * time.Second
@@ -58,10 +58,10 @@ func TestDiagnose(t *testing.T) {
 			t.Fatalf("ok=%+v exit=%+v", got["ok"], got["exit"])
 		}
 		if got["slow"].Ms > 8000 {
-			t.Fatalf("時間切れを待ちすぎた: %dms", got["slow"].Ms)
+			t.Fatalf("超时を待ちすぎた: %dms", got["slow"].Ms)
 		}
 	}
-	if !strings.Contains(got["none"].Detail, "見つかりません") {
+	if !strings.Contains(got["none"].Detail, "找不到") {
 		t.Fatalf("none=%+v", got["none"])
 	}
 }

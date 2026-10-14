@@ -73,7 +73,7 @@ func TestTurnWritesLiveLog(t *testing.T) {
 		got = append(got, ln.Stream+":"+ln.Text)
 	}
 	s := strings.Join(got, "\n")
-	if !strings.Contains(s, "info:=== turn-1 開始") || !strings.Contains(s, "stdout:line1") || !strings.Contains(s, "stderr:warn") || !strings.Contains(s, "info:=== turn-1 終了") {
+	if !strings.Contains(s, "info:=== turn-1 开始") || !strings.Contains(s, "stdout:line1") || !strings.Contains(s, "stderr:warn") || !strings.Contains(s, "info:=== turn-1 结束") {
 		t.Fatalf("出力:\n%s", s)
 	}
 	if !strings.Contains(s, `token="`+redactedToken+`"`) || regexp.MustCompile(`[0-9a-f]{32}`).MatchString(s) {

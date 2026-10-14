@@ -54,7 +54,7 @@ func TestFileSessionStop(t *testing.T) {
 		t.Fatalf("Stop で終わらない: %v", err)
 	}
 	if s.AutoDetect() {
-		t.Fatal("閉じたことを自動で検知できる扱いになっている")
+		t.Fatal("閉じたことを自动検知できる扱いになっている")
 	}
 }
 

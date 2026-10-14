@@ -674,7 +674,7 @@ $('#cmdList').addEventListener('click', (e) => {
 setInterval(updateInbox, 60 * 1000); // 1時間を過ぎたブロックを「実行待ち」から外す
 // 進行役にまとめを頼む: 人間の発言として投稿する（まとめるのは進行役）
 $('#askSummary').onclick = async () => {
-  const text = (status.leader ? `@${status.leader} ` : '') + '人間へのお願い（未処理）と完了したことを、1つの発言にまとめてください。';
+  const text = (status.leader ? `@${status.leader} ` : '') + '请把给作者的待办请求和已完成事项总结成一条发言。';
   if (await api('POST', '/api/messages', { text }) !== undefined) toggleInbox(false);
 };
 function toggleHumanDone(el) {
@@ -1011,7 +1011,7 @@ function tick() {
   if (!el) return;
   if (w) {
     const left = Math.max(0, Math.ceil((w.until - Date.now()) / 1000));
-    el.textContent = t('次: {0}（あと{1}秒）… 今のうちに発言すると、次の発言者に渡されます', w.agents.map(nameOf).join('・'), left);
+    el.textContent = t('次: {0}（あと{1}秒）… 今のうちに発言すると、次の発言者に渡されます', w.agents.map(nameOf).join('、'), left);
   } else {
     el.textContent = '';
   }

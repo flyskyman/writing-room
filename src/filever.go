@@ -1,11 +1,11 @@
 package main
 
 // ファイルの版の記録: エージェントのターンの前後で作業ディレクトリのファイルを記録し、
-// ターンの間に変わったファイルと、その更新時刻・ハッシュの先頭をシステムメッセージで添える。
+// ターンの間に変わったファイルと、その更新時刻・ハッシュの先頭を系统メッセージで添える。
 // レビュー役が、自分の読んだファイルが修正の前か後かを見分けられるようにする。
 //
 // 前後の比較は更新時刻と大きさだけで行い、ハッシュは変わったファイルだけ計算する。
-// 同時に動いている別のエージェントや人間の変更も、この間に起きれば同じく表示される。
+// 同時に動いている別のエージェントや作者の変更も、この間に起きれば同じく表示される。
 
 import (
 	"crypto/sha256"
@@ -22,7 +22,7 @@ import (
 
 const (
 	fileSnapMaxFiles  = 20000 // これを超えるディレクトリでは記録をやめる（走査に時間がかかるため）
-	fileVerMaxList    = 20    // システムメッセージに載せるファイルの上限
+	fileVerMaxList    = 20    // 系统メッセージに載せるファイルの上限
 	fileVerHashLen    = 8     // 表示するハッシュの桁数
 	fileVerMaxHashLen = 64 << 20
 )
@@ -142,25 +142,25 @@ func shortFileHash(path string, size int64) string {
 	return hex.EncodeToString(h.Sum(nil))[:fileVerHashLen]
 }
 
-// formatFileVersions は差分をシステムメッセージの本文にする。変更がなければ空を返す。
+// formatFileVersions は差分を系统メッセージの本文にする。変更がなければ空を返す。
 func formatFileVersions(name string, changes []fileChange) string {
 	if len(changes) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s のターンの間に変わったファイル（%d件）:", name, len(changes))
+	fmt.Fprintf(&b, "%s 本轮期间改动的文件（%d 个）:", name, len(changes))
 	for i, c := range changes {
 		if i >= fileVerMaxList {
-			fmt.Fprintf(&b, "\n- ほか %d件", len(changes)-fileVerMaxList)
+			fmt.Fprintf(&b, "\n- 另有 %d 个", len(changes)-fileVerMaxList)
 			break
 		}
 		switch {
 		case c.deleted:
-			fmt.Fprintf(&b, "\n- `%s` 削除%s", c.path, c.lineCounts())
+			fmt.Fprintf(&b, "\n- `%s` 删除%s", c.path, c.lineCounts())
 		default:
 			label := "更新"
 			if c.added {
-				label = "新規"
+				label = "新增"
 			}
 			hash := c.hash
 			if hash == "" {

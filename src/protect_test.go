@@ -31,7 +31,7 @@ func TestProtectionDenyRules(t *testing.T) {
 	}
 }
 
-// 保護するパスは作業ディレクトリと AI Agent Room のフォルダから決め、config/protected.json で足せる（環境に依存するパスを書かない）
+// 保護するパスは作業ディレクトリと AI Agent Room 文件夹から決め、config/protected.json で足せる（環境に依存するパスを書かない）
 func TestBuildProtection(t *testing.T) {
 	secret, work, legacy := t.TempDir(), t.TempDir(), t.TempDir()
 	os.MkdirAll(filepath.Join(secret, configDirName), 0o700)

@@ -15,28 +15,28 @@ import (
 )
 
 var (
-	ErrSummarizing   = errors.New("要約を作成中です")
-	ErrNothingToSumm = errors.New("要約する発言がありません")
+	ErrSummarizing   = errors.New("正在生成总结")
+	ErrNothingToSumm = errors.New("没有可总结的发言")
 )
 
 // summaryMaxChars を超える会話は、後ろ（新しい発言）から summaryMaxChars 文字だけを要約に渡す
 const summaryMaxChars = 200000
 
-const summaryInstruction = "以下は、人間と複数のAIエージェントのグループチャットの記録です。" +
-	"この会話を新しい会話に引き継ぐため、次の3つの見出しで、日本語の箇条書きで簡潔にまとめてください。" +
-	"ファイル名・関数名・設定値など、続きの作業に必要な具体的な情報は省略しないでください。前置きや結びの文は不要です。\n" +
-	"## 決定事項\n## 未完了の作業（担当・完了条件があれば含める）\n## 注意点\n\n--- 記録 ---\n"
+const summaryInstruction = "以下是作者与多个 AI 代理的群聊记录。" +
+	"为把本对话交接到新对话，请按下面三个标题，用中文要点简洁总结。" +
+	"文件名、函数名、设置值等继续工作所需的具体信息不要省略。不要开场白和结束语。\n" +
+	"## 已决事项\n## 未完成的工作（有负责人、完成条件则一并写）\n## 注意点\n\n--- 记录 ---\n"
 
 // summaryDeltaInstruction は前回の議事録と、その後の発言から議事録を作り直すときの指示（案10）。
 // 全文を渡し直さないので要約のトークンが減り、後ろから summaryMaxChars 文字で切ったときに古い決定事項が落ちることもない
-const summaryDeltaInstruction = "以下は、人間と複数のAIエージェントのグループチャットの前回の議事録と、その後の新しい発言の記録です。" +
-	"この会話を新しい会話に引き継ぐため、前回の議事録に新しい発言の内容を反映した議事録を、次の3つの見出しで、日本語の箇条書きで簡潔に作成してください。" +
-	"「決定事項」は前回の項目を省略せずにすべて残し、新しい決定を後ろに追加してください（取り消し・変更された項目は消さずに、その旨を書き添える）。" +
-	"「未完了の作業」と「注意点」は、新しい発言を踏まえて更新してください（完了した作業は除く）。" +
-	"ファイル名・関数名・設定値など、続きの作業に必要な具体的な情報は省略しないでください。前置きや結びの文は不要です。\n" +
-	"## 決定事項\n## 未完了の作業（担当・完了条件があれば含める）\n## 注意点\n\n--- 前回の議事録 ---\n"
+const summaryDeltaInstruction = "以下是作者与多个 AI 代理群聊的上一份纪要，以及之后的新发言记录。" +
+	"为把本对话交接到新对话，请把新发言的内容合并进上一份纪要，按下面三个标题，用中文要点简洁写出。" +
+	"「已决事项」保留上一份的全部条目，新决定追加在后面（被撤销或更改的条目不删，注明即可）。" +
+	"「未完成的工作」和「注意点」请根据新发言更新（去掉已完成的）。" +
+	"文件名、函数名、设置值等继续工作所需的具体信息不要省略。不要开场白和结束语。\n" +
+	"## 已决事项\n## 未完成的工作（有负责人、完成条件则一并写）\n## 注意点\n\n--- 上一份纪要 ---\n"
 
-const summaryDeltaSeparator = "\n\n--- 前回の議事録の後の新しい記録 ---\n"
+const summaryDeltaSeparator = "\n\n--- 上一份纪要之后的新记录 ---\n"
 
 // summarizerLocked は要約を担当するエージェントを選ぶ。進行役が参加できればその人、いなければ最初の参加可能なエージェント。
 func (r *Room) summarizerLocked() *Agent {
@@ -94,7 +94,7 @@ func (r *Room) minutesPromptLocked() (prompt, mode string) {
 }
 
 // SummarizeAndReset は実行中の処理を止め、会話の要約を作ってから新しい会話を始める。
-// 要約の作成には時間がかかるため裏で行い、結果（または失敗）はシステムメッセージで知らせる。
+// 要約の作成には時間がかかるため裏で行い、結果（または失敗）は系统メッセージで知らせる。
 func (r *Room) SummarizeAndReset() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -113,7 +113,7 @@ func (r *Room) SummarizeAndReset() error {
 	r.summarizing = true
 	oldLog := filepath.Base(r.logFile)
 	gen, workdir, modelSel := r.gen, r.workdir, a.modelSel
-	r.postLocked("system", fmt.Sprintf("%s が会話の要約を作成しています。完了すると新しい会話を始めます。", a.Name), "system")
+	r.postLocked("system", fmt.Sprintf("%s 正在总结对话。完成后开始新对话。", a.Name), "system")
 	r.log.Info("conversation.summarize.start", "agent", a.ID, "log_file", oldLog, "messages", len(r.messages), "mode", mode)
 	ctx, cancel := context.WithCancel(context.Background())
 	r.summaryCancel = cancel
@@ -149,22 +149,22 @@ func (r *Room) finishSummary(ctx context.Context, cancel context.CancelFunc, a *
 	// 追加依頼やコマンド結果が失われるので、現在の会話を維持する。
 	if len(r.messages) != upto {
 		log.Info("conversation.summarize.end", "discarded", "new_messages")
-		r.postLocked("system", "要約中に新しい発言が届いたため、会話の切り替えを取り消しました。追加の発言はそのまま残っています。", "system")
+		r.postLocked("system", "总结期间收到新发言，已取消切换对话。新增发言保留。", "system")
 		r.pushStatusLocked()
 		return
 	}
 	summary := strings.TrimSpace(cleanReply(a, res.Text))
 	if err == nil && summary == "" {
-		err = errors.New("要約が空でした")
+		err = errors.New("总结为空")
 	}
 	if err != nil {
 		log.Error("conversation.summarize.end", "error", err.Error())
-		r.postLocked("system", fmt.Sprintf("会話の要約に失敗しました（%s）。会話はそのまま続けられます。", err.Error()), "system")
+		r.postLocked("system", fmt.Sprintf("总结对话失败（%s）。对话可照常继续。", err.Error()), "system")
 		r.pushStatusLocked()
 		return
 	}
 	log.Info("conversation.summarize.end", "summary_chars", len([]rune(summary)))
 	r.resetLocked()
 	r.postProfileLocked()
-	r.postLocked("system", fmt.Sprintf("前の会話（%s）の要約です（作成: %s）。これを踏まえて続けてください。\n\n%s", oldLog, a.Name, summary), "system")
+	r.postLocked("system", fmt.Sprintf("这是上一段对话（%s）的总结（生成: %s）。请据此继续。\n\n%s", oldLog, a.Name, summary), "system")
 }

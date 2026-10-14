@@ -1,6 +1,6 @@
 package main
 
-// 人間の環境のプロフィールと、この会話でのルールを、会話の先頭にシステムの発言として載せる（修正案 7.3）。
+// 作者の環境のプロフィールと、この会話でのルールを、会話の先頭に系统の発言として載せる（修正案 7.3）。
 // 起動時と、新しい会話を始めたとき（「新しい会話」「要約して新しい会話」、作業ディレクトリの変更）に投稿する。
 // 環境変数の値は載せない（キーや秘密が混ざるため）。載せるのは OS とシェルの有無・バージョンだけ。
 
@@ -17,15 +17,15 @@ import (
 )
 
 // defaultRules はこの会話でのルール（rules.md がないときに使う。@claude2 の文面、#1592。1 は宛先の仕様に合わせて 2026-10-03 に変更）
-const defaultRules = `1. 宛先のない質問には、全員がそれぞれの立場から答えてよい。ほかの人と同じ答えになるときは [pass] にする。名指しされた質問には、名指しされた人が答える。
-2. 作業は、進行役が割り振ってから始める。名乗り出たら、進行役の返事を待つ。
-3. 人間に実行してもらうコマンドは、進行役だけが出す。ほかの人は進行役に提案する。
-4. そのコマンドは、言語指定つきのコードブロック（powershell / cmd / bash）で書く。人間は［実行］ボタンで実行できるので、スクリプトファイルは作らない。
-5. コマンドは、上の「環境」にあるシェルに合わせて書く。cmd と PowerShell の書き方を混ぜない（例：cmd では $env:TEMP は使えない）。
-6. 本番の変更、IAM、削除は、人間が実行する。エージェントは自分の許可ルールを書き換えず、安全確認も回避しない。ルールや権限の設定（.claude/、CLAUDE.md、GEMINI.md、rules.md など）は編集しない。
-7. 秘密情報（キー、トークン、パスワード）はチャットに書かない。{{ai_agent_room_dir}} は読まない・編集しない。
-8. 共有しているもの（CDP のポート、プロジェクトの logs/ など）は、使用中でないか確かめてから使う。テストのログは一時フォルダに出す。
-9. 完了を報告するときは、確認した内容（build、test、画面）と、確認していないことを分けて書く。`
+const defaultRules = `1. 没有指定收件人的问题，所有人可从各自立场回答。答案会与他人相同时回复 [pass]。被点名的问题由被点名者回答。
+2. 工作在主持分配后开始。主动请缨后等主持答复。
+3. 请作者运行的命令只由主持给出。其他人向主持提议。
+4. 这类命令写在带语言标注的代码块（powershell / cmd / bash）里。作者可用［运行］按钮执行，所以不要创建脚本文件。
+5. 命令按上面「环境」里列出的 shell 来写。不要混用 cmd 和 PowerShell 语法（例如 cmd 里不能用 $env:TEMP）。
+6. 生产变更、IAM、删除由作者执行。代理不改写自己的权限规则，也不绕过安全确认。不要编辑规则或权限设置（.claude/、CLAUDE.md、GEMINI.md、rules.md 等）。
+7. 秘密信息（密钥、token、密码）不写进聊天。不要读取或编辑 {{ai_agent_room_dir}}。
+8. 使用共享资源（CDP 端口、项目的 logs/ 等）前确认没有人在用。测试日志输出到临时文件夹。
+9. 报告完成时，把已确认的内容（build、test、页面）和未确认的分开写。`
 
 // defaultRulesEn は defaultRules の英語版（言語の設定が英語で、rules.en.md も rules.md もないときに使う）
 const defaultRulesEn = `1. Anyone may answer a question with no addressee from their own point of view. If your answer would repeat someone else's, reply [pass]. A question addressed to someone is answered by that person.
@@ -38,9 +38,9 @@ const defaultRulesEn = `1. Anyone may answer a question with no addressee from t
 8. Before using something shared (CDP ports, the project's logs/ and so on), check that it is not in use. Write test logs to a temporary folder.
 9. When reporting that you are done, separate what you checked (build, test, screen) from what you did not check.`
 
-// rulesFileName はルールを差し替えるファイル。設定フォルダ（AI Agent Room のフォルダの config）に置く（人間が再ビルドせずに直せる）。
-// 文面の {{ai_agent_room_dir}} は、投稿するときにこの環境の AI Agent Room のフォルダに置き換える。
-// 言語の設定が英語のときは rulesFileNameEn を先に探し、なければ rulesFileName を使う（人間が書いたルールを言語の設定で無視しない）
+// rulesFileName はルールを差し替えるファイル。設定フォルダ（AI Agent Room 文件夹の config）に置く（作者が再ビルドせずに直せる）。
+// 文面の {{ai_agent_room_dir}} は、投稿するときにこの環境の AI Agent Room 文件夹に置き換える。
+// 言語の設定が英語のときは rulesFileNameEn を先に探し、なければ rulesFileName を使う（作者が書いたルールを言語の設定で無視しない）
 const (
 	rulesFileName   = "rules.md"
 	rulesFileNameEn = "rules.en.md"
@@ -115,16 +115,16 @@ func (e *envInfo) text(lang string) string {
 	en := lang == langEn
 	var b strings.Builder
 	fmt.Fprintf(&b, "- OS: %s", e.OS)
-	b.WriteString(pick(en, "\n- Shells:", "\n- シェル:"))
+	b.WriteString(pick(en, "\n- Shells:", "\n- Shell:"))
 	for _, s := range e.Shells {
 		v := s.Version
 		switch {
 		case !s.Found:
-			v = pick(en, "not found", "見つかりません")
+			v = pick(en, "not found", "未找到")
 		case s.VersionNG:
-			v = pick(en, "available (version unknown)", "あり（バージョンを取得できません）")
+			v = pick(en, "available (version unknown)", "有（无法取得版本）")
 		case v == "":
-			v = pick(en, "available", "あり")
+			v = pick(en, "available", "有")
 		}
 		fmt.Fprintf(&b, "\n  - %s: %s", s.Name, v)
 	}
@@ -179,7 +179,7 @@ func (r *Room) SetEnvProfile(env *envInfo, configDir, legacyDir string) {
 	r.postProfileLocked()
 }
 
-// ConfigDir は人間が編集する設定のフォルダを返す
+// ConfigDir は作者が編集する設定のフォルダを返す
 func (r *Room) ConfigDir() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -193,21 +193,21 @@ func (r *Room) postProfileLocked() {
 		return
 	}
 	en := r.langLocked() == langEn
-	var legacy []string // 旧い置き場所から読んだファイル（人間に移してもらう）
+	var legacy []string // 旧い置き場所から読んだファイル（作者に移してもらう）
 	rules, _, p, old := r.resolveRulesLocked(r.langLocked())
 	if old {
 		legacy = append(legacy, p)
 	}
-	// ルールの文面の {{ai_agent_room_dir}} は、この環境の AI Agent Room のフォルダ（エージェントに読ませない場所）に置き換える
-	rules = strings.ReplaceAll(rules, appDirPlaceholder, firstNonEmpty(r.appDirLocked(), pick(en, "the AI Agent Room folder", "AI Agent Room のフォルダ")))
+	// ルールの文面の {{ai_agent_room_dir}} は、この環境の AI Agent Room 文件夹（エージェントに読ませない場所）に置き換える
+	rules = strings.ReplaceAll(rules, appDirPlaceholder, firstNonEmpty(r.appDirLocked(), pick(en, "the AI Agent Room folder", "AI Agent Room 文件夹")))
 	caps, oldCaps := r.capabilitiesTextLocked(en)
 	if oldCaps != "" {
 		legacy = append(legacy, oldCaps)
 	}
-	// 人間への確認・依頼に @human を付けてもらうため、参加者として人間も載せる（画面の「あなたへ」は @human 宛ての発言を集める）
-	format := "【環境とこの会話でのルール】（AI Agent Room が起動時と新しい会話の開始時に投稿）\n\n■ 環境\n%s\n- 作業ディレクトリ: %s\n\n" +
-		"■ 参加者\n- @human（人間）: 依頼・確認・判断をし、コマンドを［実行］で実行する。人間に確認・判断・作業を頼むときは、発言に @human を付ける（画面の「あなたへ」に集まる）\n- エージェント: 次の「■ エージェント」のとおり\n\n" +
-		"■ エージェント（できること。人間が設定フォルダの %s で宣言）\n%s\n\n■ この会話でのルール\n%s"
+	// 作者への確認・依頼に @human を付けてもらうため、参加者として作者も載せる（画面の「あなたへ」は @human 宛ての発言を集める）
+	format := "【环境与本对话的规则】（AI Agent Room 在启动和新对话开始时投递）\n\n■ 环境\n%s\n- 工作目录: %s\n\n" +
+		"■ 参与者\n- @human（作者）: 提出要求、确认、裁定，并用［运行］执行命令。需要作者确认、裁定或做事时，在发言里加 @human（会汇集到页面的「给你」）\n- 代理: 见下面的「■ 代理」\n\n" +
+		"■ 代理（能做什么。由作者在配置文件夹的 %s 中声明）\n%s\n\n■ 本对话的规则\n%s"
 	if en {
 		format = "[Environment and rules for this chat] (posted by AI Agent Room at startup and when a new chat starts)\n\n■ Environment\n%s\n- Working directory: %s\n\n" +
 			"■ Participants\n- @human (the human): makes requests, checks and decides, and runs commands with [Run]. When you need the human to check, decide or do something, put @human in your message (it is collected under \"For you\" on the screen)\n- Agents: as listed under \"■ Agents\" below\n\n" +
@@ -215,9 +215,9 @@ func (r *Room) postProfileLocked() {
 	}
 	text := fmt.Sprintf(format, r.envProfile.text(r.langLocked()), r.workdir, capabilitiesFileName, caps, rules)
 	if len(legacy) > 0 {
-		// 旧い置き場所はエージェントが書き換えられる場所なので、人間に移してもらう
+		// 旧い置き場所はエージェントが書き換えられる場所なので、作者に移してもらう
 		text += fmt.Sprintf(pick(en, "\n\n[Note] These files were read from the old location. Move them to the config folder (%s): %s",
-			"\n\n【注意】次のファイルを旧い置き場所から読みました。設定フォルダ（%s）に移してください: %s"),
+			"\n\n【注意】以下文件是从旧位置读取的，请移到配置文件夹（%s）: %s"),
 			r.configDir, strings.Join(legacy, pick(en, ", ", "、")))
 		r.log.Warn("config.legacy", "files", strings.Join(legacy, ","))
 	}
@@ -253,10 +253,10 @@ func defaultRulesFor(lang string) string {
 	return pick(lang == langEn, defaultRulesEn, defaultRules)
 }
 
-// appDirPlaceholder はルールの文面で、AI Agent Room のフォルダ（設定フォルダの親）に置き換える文字列
+// appDirPlaceholder はルールの文面で、AI Agent Room 文件夹（設定フォルダの親）に置き換える文字列
 const appDirPlaceholder = "{{ai_agent_room_dir}}"
 
-// appDirLocked は AI Agent Room のフォルダ（認証トークンと設定の置き場所）を返す
+// appDirLocked は AI Agent Room 文件夹（認証トークンと設定の置き場所）を返す
 func (r *Room) appDirLocked() string {
 	if r.configDir == "" {
 		return ""
@@ -266,7 +266,7 @@ func (r *Room) appDirLocked() string {
 
 // ---- エージェントごとのできること（修正案 7.3） -------------------------------------------------
 
-// capabilitiesFileName は、エージェントごとにできることを人間が宣言するファイル。rules.md と同じフォルダに置く。
+// capabilitiesFileName は、エージェントごとにできることを作者が宣言するファイル。rules.md と同じフォルダに置く。
 // 例: {"claude": {"write": true, "exec": true, "prod": false}, "agy": {"write": false}}
 // 書いていない項目・エージェントは「不明」と出す（AI Agent Room には実際の権限を調べる方法がないため）
 const capabilitiesFileName = "capabilities.json"
@@ -281,7 +281,7 @@ type AgentCapabilities struct {
 func capText(v *bool, en bool) string {
 	switch {
 	case v == nil:
-		return pick(en, "unknown", "不明")
+		return pick(en, "unknown", "未知")
 	case *v:
 		return pick(en, "yes", "可")
 	default:
@@ -302,7 +302,7 @@ func (r *Room) capabilitiesTextLocked(en bool) (text, legacyPath string) {
 			}
 		}
 	}
-	format := pick(en, "- @%s (%s): write %s / run commands %s / production %s", "- @%s（%s）: 書き込み %s / コマンド実行 %s / 本番操作 %s")
+	format := pick(en, "- @%s (%s): write %s / run commands %s / production %s", "- @%s（%s）: 写入 %s / 运行命令 %s / 生产操作 %s")
 	var lines []string
 	for _, a := range r.agents {
 		c := caps[a.ID]

@@ -1,6 +1,6 @@
 package main
 
-// 起動時に投稿する「この会話でのルール」を設定画面から編集する（2026-10-02 人間の依頼）。
+// 起動時に投稿する「この会話でのルール」を設定画面から編集する（2026-10-02 作者の依頼）。
 // 編集するのは設定フォルダ（エージェントが読み書きできない場所。protect.go）の rules.md（日本語）と rules.en.md（英語）。
 // ファイルがなければ既定のルールを返す。保存しても今の会話には投稿せず、次の投稿（起動時・新しい会話の開始時）から使う。
 
@@ -18,9 +18,9 @@ import (
 const maxRulesBytes = 64 << 10
 
 var (
-	ErrRulesEmpty           = errors.New("ルールが空です。既定のルールに戻すときは「既定に戻す」を使ってください")
-	ErrRulesTooLarge        = errors.New("ルールが長すぎます（64KB まで）")
-	ErrConfigDirUnavailable = errors.New("設定フォルダの場所を決められません")
+	ErrRulesEmpty           = errors.New("规则为空。要恢复默认请用「恢复默认」")
+	ErrRulesTooLarge        = errors.New("规则太长（最多 64KB）")
+	ErrConfigDirUnavailable = errors.New("无法确定配置文件夹位置")
 )
 
 // RulesInfo は1つの言語のルール
@@ -115,7 +115,7 @@ func (room *Room) handlePutRules(w http.ResponseWriter, r *http.Request) {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, maxRulesBytes*2)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
 		return
 	}
 	room.writeRulesResult(w, r, room.SaveRules(r.PathValue("lang"), body.Text))

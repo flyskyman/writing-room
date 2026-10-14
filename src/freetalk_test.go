@@ -89,7 +89,7 @@ func indexOf(s []string, v string) int {
 	return -1
 }
 
-// 宛先のない人間の発言には、進行役がいても全員が同時に考え始める（@all と同じ）
+// 宛先のない作者の発言には、進行役がいても全員が同時に考え始める（@all と同じ）
 func TestFreeTalkNoMentionWakesAll(t *testing.T) {
 	r, log, mu := newFreeTalkRoom(t, "x")
 	if _, err := r.PostHuman("質問です"); err != nil {
@@ -116,7 +116,7 @@ func TestFreeTalkMentionWakesOnlyMentioned(t *testing.T) {
 	}
 }
 
-// 人間・進行役・メンバーの区別なく、宛先がなければ全員、あれば宛先の人だけを起動する
+// 作者・進行役・メンバーの区別なく、宛先がなければ全員、あれば宛先の人だけを起動する
 func TestFreeTalkAddressed(t *testing.T) {
 	r, _, _ := newFreeTalkRoom(t, "x")
 	r.mu.Lock()
