@@ -1,3 +1,6 @@
 /ai-agent-room.exe
 /logs/
 /ai-agent-room
+
+# 运行数据（日志、稿件状态、token、截图）
+/run/
