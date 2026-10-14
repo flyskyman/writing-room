@@ -94,7 +94,7 @@ func TestEnvProfileCapabilities(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.Reset()
-	if m := lastMessage(r); !strings.Contains(m.Text, "書き込み 不明") {
+	if m := lastMessage(r); !strings.Contains(m.Text, "写入 未知") {
 		t.Fatalf("壊れた宣言のときの表示:\n%s", m.Text)
 	}
 }
