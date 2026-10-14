@@ -174,15 +174,16 @@ func (r *Room) SetCommandLeaderOnly(on bool) {
 const (
 	langJa = "ja"
 	langEn = "en"
+	langZh = "zh" // 画面だけ中国語。投稿（環境・ルール）とルールのファイルは英語（langEn）と同じ扱い
 )
 
 // ErrInvalidLang は対応していない言語を指定したとき
-var ErrInvalidLang = errors.New("対応していない言語です（ja / en）")
+var ErrInvalidLang = errors.New("対応していない言語です（ja / en / zh）")
 
 // SetLang は言語の設定を変える。環境とルールの投稿は、次に投稿するとき（起動時・新しい会話の開始時）からこの言語になる。
 // 今の会話の投稿は書き直さない（エージェントはすでに読んでいる）
 func (r *Room) SetLang(lang string) error {
-	if lang != langJa && lang != langEn {
+	if lang != langJa && lang != langEn && lang != langZh {
 		return ErrInvalidLang
 	}
 	r.mu.Lock()
@@ -197,7 +198,7 @@ func (r *Room) SetLang(lang string) error {
 
 // langLocked は投稿の文面に使う言語（未設定なら日本語）
 func (r *Room) langLocked() string {
-	if r.lang == langEn {
+	if r.lang == langEn || r.lang == langZh {
 		return langEn
 	}
 	return langJa

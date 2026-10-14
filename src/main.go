@@ -132,6 +132,14 @@ func main() {
 	mux.HandleFunc("GET /api/rules", room.handleGetRules)              // 起動時のルール（日本語・英語）
 	mux.HandleFunc("PUT /api/rules/{lang}", room.handlePutRules)       // ルールを設定フォルダに保存
 	mux.HandleFunc("DELETE /api/rules/{lang}", room.handleDeleteRules) // ルールを既定に戻す
+	// 稿件工作台（manuscript.go）
+	mux.HandleFunc("GET /api/manuscript", room.handleGetManuscript)
+	mux.HandleFunc("PUT /api/manuscript", room.handlePutManuscript)
+	mux.HandleFunc("POST /api/manuscript/undo", room.handleUndoManuscript)
+	mux.HandleFunc("GET /api/manuscript/export", room.handleExportManuscript)
+	mux.HandleFunc("POST /api/candidates/{id}/accept", room.handleAcceptCandidate)
+	mux.HandleFunc("POST /api/candidates/{id}/reject", room.handleRejectCandidate)
+	mux.HandleFunc("GET /api/turns/{turn}", room.handleGetTurn)
 	mux.HandleFunc("POST /mcp", room.handleMCP)
 	mux.HandleFunc("GET /mcp", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusMethodNotAllowed) }) // SSE ストリームは提供しない
 
@@ -208,14 +216,15 @@ func (room *Room) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 func (room *Room) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Text    string `json:"text"`
-		ReplyTo int    `json:"reply_to"` // 返信先の発言ID（省略時は返信でない）
+		Text     string `json:"text"`
+		ReplyTo  int    `json:"reply_to"` // 返信先の発言ID（省略時は返信でない）
+		Decision bool   `json:"decision"` // 记为作者裁定（manuscript.go）
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
 		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
-	m, err := room.PostHumanReply(body.Text, body.ReplyTo)
+	m, err := room.PostHumanDecision(body.Text, body.ReplyTo, body.Decision)
 	if errors.Is(err, ErrEmptyMessage) {
 		writeError(w, r, http.StatusBadRequest, "EMPTY_MESSAGE", err.Error())
 		return
@@ -508,7 +517,7 @@ func (room *Room) handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if body.Lang != nil && *body.Lang != langJa && *body.Lang != langEn {
+	if body.Lang != nil && *body.Lang != langJa && *body.Lang != langEn && *body.Lang != langZh {
 		writeError(w, r, http.StatusBadRequest, "INVALID_LANG", ErrInvalidLang.Error())
 		return
 	}

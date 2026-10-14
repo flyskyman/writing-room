@@ -217,8 +217,32 @@
     background: var(--color-error-bg); color: var(--color-error-text); border: 1px solid var(--color-error-text);
     padding: 6px 14px; border-radius: 4px; font-size: 13px; display: none;
   }
+  /* 稿件工作台（2026-10-14。manuscript.go）: 右栏显示当前稿件、候选与词级差异、裁定 */
+  #ms { width: 440px; flex-shrink: 0; overflow-y: auto; padding: 14px; border-left: 1px solid var(--line); background: var(--panel); font-size: 13px; display: flex; flex-direction: column; gap: 10px; }
+  #ms h2 { font-size: 15px; margin: 0; } #ms h3 { font-size: 13px; margin: 6px 0 0; }
+  #ms .msbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; } #ms .msbar button { padding: 1px 10px; font-size: 12px; }
+  #msText { width: 100%; box-sizing: border-box; font: 13px/1.5 Georgia, "Times New Roman", serif; resize: vertical; min-height: 9em; }
+  #msText.dirty { border-color: var(--color-warn-text); }
+  .cand { border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 8px; padding: 8px 10px; background: color-mix(in srgb, var(--c) 10%, var(--panel)); }
+  .cand .chead { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; margin-bottom: 4px; } .cand .chead b { color: var(--c); }
+  .cand .cdiff { font: 13px/1.5 Georgia, "Times New Roman", serif; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cand ins { background: color-mix(in srgb, var(--color-success-text) 25%, transparent); text-decoration: none; }
+  .cand del { background: color-mix(in srgb, var(--color-error-text) 25%, transparent); }
+  .cand .cact { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; } .cand .cact button { padding: 1px 10px; font-size: 12px; }
+  .cand textarea { width: 100%; box-sizing: border-box; font: 13px/1.5 Georgia, serif; margin-top: 6px; }
+  .cand.accepted, .cand.rejected { opacity: .55; } .cand.stale .cdiff { opacity: .6; }
+  .tag { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; border: 1px solid var(--line); color: var(--muted); }
+  .tag.warn { background: var(--color-warn-bg); color: var(--color-warn-text); border-color: var(--color-warn-text); }
+  .tag.ok { color: var(--color-success-text); border-color: var(--color-success-text); }
+  .tag.ng { color: var(--color-error-text); border-color: var(--color-error-text); }
+  .dec { font-size: 12px; padding: 4px 8px; border-left: 3px solid var(--human); background: var(--accent-bg); border-radius: 4px; }
+  .msg .who .ctx { border: none; background: none; padding: 0 4px; margin-left: 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
+  #turnDlg { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); width: min(60em, calc(100vw - 3em)); font-size: 13px; }
+  #turnDlg pre { max-height: 50vh; overflow: auto; white-space: pre-wrap; background: var(--code-bg); padding: 8px; font-size: 12px; }
+  #turnDlg table { font-size: 12px; border-collapse: collapse; } #turnDlg td { padding: 1px 10px 1px 0; vertical-align: top; }
   @media (max-width: 600px) {
     body { flex-direction: column; }
+    #ms { width: auto; border-left: 0; border-top: 1px solid var(--line); }
     #toast { left: 50%; }
     header { width: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
     .controls { flex-direction: row; flex-wrap: wrap; }
@@ -331,6 +355,7 @@
     <div class="quick">宛先:
       <span id="mentionButtons"></span>
       <span>（宛先なし＝全員が同時に回答。AIが @名前 で呼ぶと、呼ばれたAIが続けて発言します）</span>
+      <label title="把这条发言记为作者裁定：进行中的轮次取消，之后每轮提示词都带上；此前产生的候选标为「未见裁定」，不能直接接受"><input type="checkbox" id="asDecision"> 作为裁定</label>
     </div>
     <div id="replyBar"><span id="replyText"></span><button id="replyCancel" title="返信をやめる">×</button></div>
     <div class="row">
@@ -342,6 +367,30 @@
   </div>
 </footer>
 </div>
+<!-- 稿件工作台（2026-10-14。manuscript.go）。文言是中文（医学写作场景），不经 i18n -->
+<aside id="ms">
+  <h2>稿件 <span id="msVer" class="muted"></span></h2>
+  <div class="msbar">
+    <button id="msSave" class="primary" title="把编辑框内容保存为新版本（基准须是当前版本）">保存为新版本</button>
+    <button id="msUndo" title="追加一个正文等于上一版本的新版本（历史只增不删）">撤销</button>
+    <button id="msExport" title="下载当前版本的 Markdown 副本（不改任何原稿文件）">导出 Markdown</button>
+    <select id="msHistory" title="查看历史版本（只读；要恢复请用撤销或手工保存）"></select>
+  </div>
+  <textarea id="msText" rows="9" spellcheck="false" placeholder="粘贴稿件段落（示例材料；不要放患者数据）。保存后，每轮提示词都带上当前版本。"></textarea>
+  <div id="msNote" class="muted"></div>
+  <h3>修改候选 <span id="msCandCount" class="muted"></span></h3>
+  <p class="muted" id="msCandHelp">代理回复里的 ```candidate 块会出现在这里；差异相对当前版本（删除 <del>红</del>、新增 <ins>绿</ins>）。接受时重新校验基准版本。</p>
+  <div id="msCands" style="display:flex;flex-direction:column;gap:8px"></div>
+  <h3>作者裁定</h3>
+  <div id="msDecisions" style="display:flex;flex-direction:column;gap:4px"></div>
+</aside>
+<dialog id="turnDlg">
+  <h2 style="font-size:15px;margin:0 0 8px">上下文清单 <span id="turnId" class="muted"></span></h2>
+  <table id="turnMeta"></table>
+  <p class="muted">实际传给 CLI 的输入（作业令牌已脱敏）：</p>
+  <pre id="turnPrompt"></pre>
+  <div class="actions" style="justify-content:flex-end"><button id="turnClose">关闭</button></div>
+</dialog>
 <div id="toast"></div>
 
 <script src="i18n.js"></script>
@@ -670,9 +719,12 @@ function messageEl(m, withDate) {
   }
   // 返信（案 8）: 返信先の発言の先頭を添え、クリックでその発言へ移る。チャットの発言には「返信」ボタンを付ける
   const ref = m.reply_to ? `<div class="reply-ref" data-ref="${m.reply_to}">${esc(replyLabel(m.reply_to))}</div>` : '';
-  const replyBtn = !withDate && m.kind !== 'system' ? `<button class="reply" data-reply="${m.id}" title="${esc(t('この発言に返信'))}">↩ ${esc(t('返信'))}</button>` : '';
-  // @human 宛ての発言は枠で囲み、依頼の種類のバッジを付ける。チャットでは［済み］で片付けられる
   let badge = '';
+  let replyBtn = !withDate && m.kind !== 'system' ? `<button class="reply" data-reply="${m.id}" title="${esc(t('この発言に返信'))}">↩ ${esc(t('返信'))}</button>` : '';
+  // 上下文清单（manuscript.go）: 代理回复带轮次 ID，可查看实际输入（材料版本、已读消息、裁定、模型）
+  if (m.turn) replyBtn += `<button class="ctx" data-turn="${esc(m.turn)}" title="查看这一轮实际传给 CLI 的输入与上下文清单">📋 上下文</button>`;
+  if (m.decision) badge += '<span class="badge">裁定</span>';
+  // @human 宛ての発言は枠で囲み、依頼の種類のバッジを付ける。チャットでは［済み］で片付けられる
   if (isForHuman(m)) {
     const k = humanKey(m), done = humanState.done.has(k);
     el.classList.add('tohuman');
@@ -705,6 +757,8 @@ function setReply(id) {
 }
 $('#replyCancel').onclick = () => setReply(0);
 $('#list').addEventListener('click', (e) => {
+  const tb = e.target.closest('[data-turn]');
+  if (tb) { showTurn(tb.dataset.turn); return; }
   const rt = e.target.closest('[data-retry]');
   if (rt) { // 失敗したターンをもう一度（案 8.3）
     rt.disabled = true;
@@ -1005,6 +1059,7 @@ function connect() {
     else if (ev.type === 'partial') showPartial(ev.partial);
     else if (ev.type === 'status') renderStatus(ev);
     else if (ev.type === 'command') applyCmdState(ev.command); // コードブロックの実行状態（案 7.1）
+    else if (ev.type === 'manuscript') renderManuscript(ev.manuscript); // 稿件工作台
     else if (ev.type === 'reset') { clearList(); setReply(0); }
   };
   // EventSource は自動で再接続し、再接続時に snapshot を受け取る
@@ -1056,6 +1111,7 @@ async function chat() {
   $('#input').value = '';
   autosize();
   const body = replyTo ? { text, reply_to: replyTo } : { text };
+  if ($('#asDecision').checked) { body.decision = true; $('#asDecision').checked = false; }
   setReply(0);
   const res = await api('POST', '/api/messages', body);
   // 送れなかったら、打った文を戻す（その間に次の文を打ち始めていれば戻さない）。返信先は今もあるときだけ戻す
@@ -1385,6 +1441,96 @@ $('#logs').onclick = (e) => {
 $('#logs').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.id === 'searchQ') { e.preventDefault(); runSearch(e.target.value); }
 });
+
+// ---- 稿件工作台（2026-10-14。manuscript.go） ----
+// 服务端是权威状态；这里只渲染 manuscript 事件并发操作请求。编辑框有未保存改动时不覆盖
+let ms = { versions: [], candidates: [], decisions: [] };
+let msDirty = false;
+const msCur = () => ms.versions[ms.versions.length - 1] || null;
+function words(s) { return s.match(/\S+|\s+/g) || []; }
+// 词级 LCS 差异（沿用 #679 挑选页 template.html 的实现），返回带 ins/del 的 HTML
+function wordDiff(a, b) {
+  const x = words(a), y = words(b), n = x.length, m = y.length;
+  const L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  let i = 0, j = 0, out = '';
+  while (i < n && j < m) {
+    if (x[i] === y[j]) { out += esc(x[i]); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) out += '<del>' + esc(x[i++]) + '</del>';
+    else out += '<ins>' + esc(y[j++]) + '</ins>';
+  }
+  while (i < n) out += '<del>' + esc(x[i++]) + '</del>';
+  while (j < m) out += '<ins>' + esc(y[j++]) + '</ins>';
+  return out;
+}
+function renderManuscript(m) {
+  ms = m || ms;
+  const cur = msCur();
+  $('#msVer').textContent = cur ? `v${cur.id} · ${cur.time} · ${cur.source}${cur.note ? ' · ' + cur.note : ''}` : '（尚无版本）';
+  if (!msDirty && document.activeElement !== $('#msText')) $('#msText').value = cur ? cur.text : '';
+  $('#msUndo').disabled = ms.versions.length < 2;
+  $('#msExport').disabled = !cur;
+  $('#msHistory').innerHTML = ms.versions.slice().reverse().map((v) => `<option value="${v.id}">v${v.id} · ${esc(v.source)}${v.note ? ' · ' + esc(v.note) : ''}</option>`).join('') || '<option value="">（无）</option>';
+  const pending = ms.candidates.filter((c) => c.status === 'pending');
+  $('#msCandCount').textContent = ms.candidates.length ? `待处理 ${pending.length} / 共 ${ms.candidates.length}` : '';
+  $('#msCands').innerHTML = ms.candidates.slice().reverse().map((c) => {
+    const tags = [];
+    if (c.status === 'accepted') tags.push('<span class="tag ok">已接受</span>');
+    if (c.status === 'rejected') tags.push('<span class="tag ng">已拒绝</span>');
+    if (c.status === 'pending' && c.stale) tags.push(`<span class="tag warn" title="候选依据的版本正文与当前不同，接受会被服务端拒绝">过期：基准 v${c.base} ≠ 当前</span>`);
+    if (c.status === 'pending' && c.missed_decision) tags.push(`<span class="tag warn" title="产生这个候选时，裁定 ${c.missed_decision} 还没有发出；不能直接接受">未见裁定 ${c.missed_decision}</span>`);
+    if (c.status === 'pending' && !c.stale && !c.missed_decision) tags.push('<span class="tag">待处理</span>');
+    const canAccept = c.status === 'pending' && !c.stale && !c.missed_decision;
+    const base = cur ? cur.text : '';
+    return `<div class="cand ${c.status}${c.stale ? ' stale' : ''}" data-cand="${c.id}" style="--c:${esc(colorOf(c.agent))}">
+      <div class="chead"><b>${esc(nameOf(c.agent))}</b><span class="muted">${esc(c.model || '')} · 候选 #${c.id} · <a href="#msg-${c.msgId || c.msg_id}" data-jump="${c.msg_id}">消息 #${c.msg_id}</a> · 基准 v${c.base} · ${esc(c.time)}</span>${tags.join('')}</div>
+      <div class="cdiff">${c.status === 'pending' ? wordDiff(base, c.text) : esc(c.text)}</div>
+      ${c.status === 'pending' ? `<div class="cact">
+        <button class="primary" data-accept="${c.id}"${canAccept ? '' : ' disabled'}>接受</button>
+        <button data-edit="${c.id}"${canAccept ? '' : ' disabled'}>编辑后接受</button>
+        <button data-reject="${c.id}">拒绝</button></div>` : ''}
+    </div>`;
+  }).join('') || '<p class="muted">还没有候选。</p>';
+  $('#msDecisions').innerHTML = ms.decisions.slice().reverse().map((d) => `<div class="dec">裁定 ${d.id} · <a href="#msg-${d.msg_id}" data-jump="${d.msg_id}">#${d.msg_id}</a> · ${esc(d.time)}<br>${esc(d.text)}</div>`).join('') || '<p class="muted">还没有裁定。勾选「作为裁定」后发送即可记录。</p>';
+}
+$('#msText').addEventListener('input', () => { msDirty = $('#msText').value !== (msCur() ? msCur().text : ''); $('#msText').classList.toggle('dirty', msDirty); $('#msNote').textContent = msDirty ? '有未保存的改动（保存后成为新版本，后续轮次使用新版本）' : ''; });
+$('#msSave').onclick = async () => {
+  const cur = msCur();
+  const v = await api('PUT', '/api/manuscript', { text: $('#msText').value, base: cur ? cur.id : 0, note: cur ? '手工编辑' : '导入' });
+  if (v) { msDirty = false; $('#msText').classList.remove('dirty'); $('#msNote').textContent = `已保存为 v${v.id}`; }
+};
+$('#msUndo').onclick = async () => { if (confirm('撤销当前版本，正文恢复为上一版本？（历史保留）')) { msDirty = false; await api('POST', '/api/manuscript/undo'); } };
+$('#msExport').onclick = () => { location.href = '/api/manuscript/export'; };
+$('#msHistory').onchange = (e) => { const v = ms.versions.find((x) => x.id === Number(e.target.value)); if (v) alert(`v${v.id} · ${v.time} · ${v.source}\n\n${v.text}`); };
+$('#msCands').addEventListener('click', async (e) => {
+  const j = e.target.closest('[data-jump]');
+  if (j) { e.preventDefault(); const el = document.getElementById('msg-' + j.dataset.jump); if (el) jumpTo(el); return; }
+  const b = e.target.closest('button');
+  if (!b) return;
+  const cur = msCur();
+  if (b.dataset.accept) { b.disabled = true; if (await api('POST', `/api/candidates/${b.dataset.accept}/accept`, { base: cur ? cur.id : 0 }) === undefined) b.disabled = false; }
+  else if (b.dataset.reject) api('POST', `/api/candidates/${b.dataset.reject}/reject`);
+  else if (b.dataset.edit) { // 在卡片内打开编辑框，确认后作为「作者微调」接受
+    const box = b.closest('.cand'), c = ms.candidates.find((x) => x.id === Number(b.dataset.edit));
+    if (box.querySelector('textarea')) return;
+    box.insertAdjacentHTML('beforeend', `<textarea rows="6" spellcheck="false"></textarea><div class="cact"><button class="primary" data-accept-edited="${c.id}">以此文本接受</button><button data-cancel-edit>取消</button></div>`);
+    box.querySelector('textarea').value = c.text;
+  }
+  else if (b.dataset.acceptEdited) { const box = b.closest('.cand'); b.disabled = true; if (await api('POST', `/api/candidates/${b.dataset.acceptEdited}/accept`, { base: cur ? cur.id : 0, text: box.querySelector('textarea').value }) === undefined) b.disabled = false; }
+  else if (b.hasAttribute('data-cancel-edit')) renderManuscript(ms);
+});
+$('#msDecisions').addEventListener('click', (e) => { const j = e.target.closest('[data-jump]'); if (j) { e.preventDefault(); const el = document.getElementById('msg-' + j.dataset.jump); if (el) jumpTo(el); } });
+async function showTurn(turn) {
+  const m = await api('GET', '/api/turns/' + encodeURIComponent(turn));
+  if (!m) return;
+  $('#turnId').textContent = turn;
+  const rows = [['代理 / 选定模型', `${nameOf(m.agent)} (@${m.agent}) / ${m.model_sel || '默认'}`], ['权限', m.permission], ['CLI 会话', m.resumed ? '续接已有会话' : '新会话'],
+    ['稿件版本', m.ms_version ? 'v' + m.ms_version : '无'], ['快照内最后裁定', m.decisions || '无'], ['传入的新消息', (m.delta_ids || []).map((i) => '#' + i).join(' ')], ['读到', '#' + m.read_upto], ['输入字符数', m.prompt_chars], ['记录文件', m.prompt_file], ['时间', m.time]];
+  $('#turnMeta').innerHTML = rows.map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
+  $('#turnPrompt').textContent = m.prompt || '';
+  $('#turnDlg').showModal();
+}
+$('#turnClose').onclick = () => $('#turnDlg').close();
 </script>
 </body>
 </html>

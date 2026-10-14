@@ -49,6 +49,10 @@ type Message struct {
 	// Retry は、ターンの失敗を知らせるシステムメッセージに付ける、もう一度起動できるエージェントID（案 8.3）。
 	// 失敗時は cursor を進めていないので、同じ新着をそのまま渡し直せる
 	Retry string `json:"retry,omitempty"`
+	// Turn 是产生这条代理回复的轮次 ID（上下文清单 logs/context.jsonl 用它查）
+	Turn string `json:"turn,omitempty"`
+	// Decision 为 true 表示作者把这条发言记为裁定（manuscript.go）
+	Decision bool `json:"decision,omitempty"`
 }
 
 type Agent struct {
@@ -169,6 +173,8 @@ type Event struct {
 	OS string `json:"os"`
 	// Lang は言語の設定（"ja" / "en"。未設定なら空）。画面はこれに合わせて表示言語を切り替える
 	Lang string `json:"lang"`
+	// Manuscript 是 type=manuscript 事件里的稿件状态（manuscript.go）
+	Manuscript *Manuscript `json:"manuscript,omitempty"`
 }
 
 type Room struct {
@@ -210,6 +216,7 @@ type Room struct {
 	configDir         string                 // 人間が編集する設定のフォルダ（rules.md・capabilities.json。%LOCALAPPDATA%\ai-agent-room\config）
 	legacyConfigDir   string                 // 設定ファイルの旧い置き場所（実行ファイルのフォルダ）。configDir になければ読む
 	leases            map[string]*Lease      // 共有物の貸し出し（キーは名前）。「新しい会話」でも保持する
+	ms                Manuscript             // 稿件工作台的权威状态（manuscript.go）。「新しい会話」でも保持する
 	clients           map[chan Event]struct{}
 	log               *slog.Logger
 }
@@ -228,6 +235,7 @@ func NewRoom(agents []*Agent, workdir, logDir string, maxHops int, delay time.Du
 	r.restoreSessionLocked()
 	r.saveSessionLocked() // 最初のターンが終わる前に終了しても、この会話を復元できるようにする
 	r.loadUsageLocked()
+	r.loadManuscriptLocked()
 	return r
 }
 
@@ -259,6 +267,8 @@ func (r *Room) Subscribe() (chan Event, func()) {
 	r.mu.Lock()
 	ch <- Event{Type: "snapshot", Messages: append([]Message{}, r.messages...)}
 	ch <- r.statusLocked()
+	ms := r.manuscriptSnapshotLocked()
+	ch <- Event{Type: "manuscript", Manuscript: &ms}
 	r.clients[ch] = struct{}{}
 	r.mu.Unlock()
 	return ch, func() {
@@ -477,6 +487,12 @@ func (r *Room) hasMessageLocked(id int) bool {
 
 // PostHumanReply は人間の発言を投稿する。replyTo が 0 でなければ、その発言への返信として投稿する（案 8）
 func (r *Room) PostHumanReply(text string, replyTo int) (Message, error) {
+	return r.PostHumanDecision(text, replyTo, false)
+}
+
+// PostHumanDecision 投稿人間の発言。decision 为 true 时记为作者裁定（manuscript.go）：
+// 正在进行的轮次被取消（其 cursor 不前进，下一轮会连同裁定一起收到），未开始的轮次用新状态
+func (r *Room) PostHumanDecision(text string, replyTo int, decision bool) (Message, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return Message{}, ErrEmptyMessage
@@ -486,7 +502,14 @@ func (r *Room) PostHumanReply(text string, replyTo int) (Message, error) {
 	if replyTo != 0 && !r.hasMessageLocked(replyTo) {
 		return Message{}, ErrInvalidReply
 	}
-	m := r.appendMessageLocked(Message{From: "human", Kind: "chat", Text: text, ReplyTo: replyTo})
+	m := r.appendMessageLocked(Message{From: "human", Kind: "chat", Text: text, ReplyTo: replyTo, Decision: decision})
+	if decision {
+		d := r.addDecisionLocked(m)
+		if r.cancel != nil {
+			r.log.Info("manuscript.decision.cancel_running", "decision", d.ID)
+			r.cancel() // 进行中的轮次按中止处理；等待中的间隔直接结束
+		}
+	}
 	r.checkRotateLocked()
 	if r.free != nil {
 		// フリートーク中は各エージェントが新着を見て自分から発言する。人間の発言で発言数の上限をリセットする。
@@ -910,6 +933,7 @@ func (r *Room) runTurn(ctx context.Context, a *Agent) turnOutcome {
 	token := newJobToken()
 	r.jobs[token] = &jobTicket{agentID: a.ID, gen: r.gen, modelVer: a.modelVer}
 	prompt := r.buildPrompt(a, delta, token, minutesPath)
+	msVer, msDec := r.msCurrentIDLocked(), r.msLastDecisionLocked() // 本轮冻结的快照（buildPrompt 写入的是同一状态）
 	sessionID := a.sessionID
 	modelSel := a.modelSel
 	permission := a.permission
@@ -919,6 +943,12 @@ func (r *Room) runTurn(ctx context.Context, a *Agent) turnOutcome {
 	gen := r.gen
 	r.pushStatusLocked()
 	r.mu.Unlock()
+	deltaIDs := make([]int, len(delta))
+	for i, m := range delta {
+		deltaIDs[i] = m.ID
+	}
+	r.writeManifest(turnManifest{Turn: turnID, Agent: a.ID, ModelSel: modelSel, Permission: firstNonEmpty(permission, "default"), Resumed: sessionID != "",
+		MsVersion: msVer, Decisions: msDec, DeltaIDs: deltaIDs, ReadUpTo: readUpTo}, strings.ReplaceAll(prompt, token, redactedToken))
 	defer func() { // ジョブの終了でトークンを無効にする（世代は進めない）
 		r.mu.Lock()
 		delete(r.jobs, token)
@@ -1049,7 +1079,8 @@ func (r *Room) runTurn(ctx context.Context, a *Agent) turnOutcome {
 		r.pushStatusLocked()
 		return outcomePass
 	}
-	r.postModelLocked(a.ID, res.Model, reply, "chat", readUpTo)
+	posted := r.appendMessageLocked(Message{From: a.ID, Model: res.Model, Kind: "chat", Text: reply, ReadUpTo: readUpTo, Turn: turnID})
+	r.addCandidatesLocked(posted, turnID, msVer, msDec)
 	r.postFileVersionsLocked(fileVers)
 	if r.free != nil {
 		r.hops++
@@ -1126,6 +1157,7 @@ func (r *Room) buildPrompt(a *Agent, delta []Message, token, minutesPath string)
 		b.WriteString(formatDelta(m))
 	}
 	b.WriteString("\n--- ここまで ---\n\n")
+	r.writeManuscriptPrompt(&b)
 	r.writeSelfStatus(&b, a, token)
 	r.writeLeader(&b, a)
 	r.writeEditingLocked(&b, a)
