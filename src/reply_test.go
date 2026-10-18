@@ -14,11 +14,11 @@ func TestPostHumanReply(t *testing.T) {
 	if err != nil || m.ReplyTo != first.ID {
 		t.Fatalf("返信: %+v, %v", m, err)
 	}
-	if got, want := formatDelta(m), fmt.Sprintf("[#%d human（回复 #%d）]: 返信です", m.ID, first.ID); got != want {
+	if got, want := formatDelta(m), fmt.Sprintf("[#%d human（#%d への返信）]: 返信です", m.ID, first.ID); got != want {
 		t.Fatalf("formatDelta = %q, want %q", got, want)
 	}
 	m.ReadUpTo = first.ID
-	if got, want := formatDelta(m), fmt.Sprintf("[#%d human（回复 #%d、读到 #%d）]: 返信です", m.ID, first.ID, first.ID); got != want {
+	if got, want := formatDelta(m), fmt.Sprintf("[#%d human（#%d への返信、#%d まで読了）]: 返信です", m.ID, first.ID, first.ID); got != want {
 		t.Fatalf("formatDelta = %q, want %q", got, want)
 	}
 	r.Reset() // 新しい会話の前の発言には返信できない

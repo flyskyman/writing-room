@@ -1,7 +1,7 @@
 package main
 
-// エージェントの権限の段階（案8）。作者が画面で選び、設定フォルダに保存する（エージェントからは書き換えられない場所）。
-// 段階は「既定」（今までどおり。CLI の設定と *_ARGS のまま）「只读」「可写工作目录」の3つ。
+// エージェントの権限の段階（案8）。人間が画面で選び、設定フォルダに保存する（エージェントからは書き換えられない場所）。
+// 段階は「既定」（今までどおり。CLI の設定と *_ARGS のまま）「読み取りのみ」「作業フォルダに書き込み可」の3つ。
 // 「制限なし」は、他のエージェントの発言に影響されて危険な操作をするおそれがあるため用意しない。
 // 既定以外を選んだときは、*_ARGS の権限のオプションを外して画面の選択を優先する。
 // 守るファイルへの禁止ルール（Claude の --settings の deny）は段階にかかわらず外さない（アダプタが別に付ける）。
@@ -16,14 +16,14 @@ import (
 
 const (
 	permDefault   = ""                // 既定（今までどおり）
-	permReadOnly  = "read_only"       // 只读
-	permWorkspace = "workspace_write" // 可写工作目录
+	permReadOnly  = "read_only"       // 読み取りのみ
+	permWorkspace = "workspace_write" // 作業フォルダに書き込み可
 )
 
-var ErrInvalidPermission = errors.New("权限级别无效，或这位代理不能选")
+var ErrInvalidPermission = errors.New("権限の段階が不正か、このエージェントでは選べません")
 
 // permLabel は段階の表示名（チャットの通知用）
-var permLabel = map[string]string{permDefault: "默认", permReadOnly: "只读", permWorkspace: "可写工作目录"}
+var permLabel = map[string]string{permDefault: "既定", permReadOnly: "読み取りのみ", permWorkspace: "作業フォルダに書き込み可"}
 
 // PermissionSetter は、権限の段階を起動時の引数で指定できる CLI のアダプタが実装する
 type PermissionSetter interface {
@@ -33,7 +33,7 @@ type PermissionSetter interface {
 	StripPermissionArgs(args []string) (kept, removed []string)
 }
 
-// Claude: 只读は、書き込みとコマンド実行のツールを禁止する（禁止は許可より優先される）。
+// Claude: 読み取りのみは、書き込みとコマンド実行のツールを禁止する（禁止は許可より優先される）。
 // 利用者側の MCP（termio など）からもシェルを操作できるため、--strict-mcp-config で AI Agent Room が渡す MCP の設定だけを使わせる
 func (a *claudeAdapter) PermissionArgs(level string) []string {
 	switch level {
@@ -152,7 +152,7 @@ func validPermission(a *Agent, level string) bool {
 	return ok && (level == permReadOnly || level == permWorkspace)
 }
 
-// SetAgentPermission は作者が選んだ権限の段階を設定し、保存する（次のターンから反映）。
+// SetAgentPermission は人間が選んだ権限の段階を設定し、保存する（次のターンから反映）。
 // 確認は画面が出す（上げる操作）。変更はログとチャットに残し、エージェント本人にも伝わるようにする
 func (r *Room) SetAgentPermission(id, level string) error {
 	r.mu.Lock()
@@ -184,7 +184,7 @@ func (r *Room) applyPermissionLocked(a *Agent, level, by string) {
 		log.Warn("agent.permission.override", "removed", strings.Join(removed, " "))
 	}
 	if by == "human" {
-		r.postLocked("system", fmt.Sprintf("%s 的权限已从「%s」改为「%s」（下一条发言起生效）。", a.Name, permLabel[from], permLabel[level]), "system")
+		r.postLocked("system", fmt.Sprintf("%s の権限を「%s」から「%s」に変更しました（次の発言から反映）。", a.Name, permLabel[from], permLabel[level]), "system")
 	}
 	r.pushStatusLocked()
 }

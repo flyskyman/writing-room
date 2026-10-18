@@ -59,7 +59,7 @@ func TestRestoreSession(t *testing.T) {
 	}
 }
 
-// 最初のターンが終わる前に終了しても、作者の発言は復元される
+// 最初のターンが終わる前に終了しても、人間の発言は復元される
 func TestRestoreBeforeFirstTurn(t *testing.T) {
 	wd, logDir := t.TempDir(), t.TempDir()
 	discard := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -70,7 +70,7 @@ func TestRestoreBeforeFirstTurn(t *testing.T) {
 
 	r2 := NewRoom([]*Agent{{ID: "x", Name: "X", Adapter: fakeAdapter{}}}, wd, logDir, 10, time.Second, discard)
 	if len(r2.messages) != 1 || r2.messages[0].Text != "最初の依頼" {
-		t.Fatalf("作者の発言が復元されていない: %+v", r2.messages)
+		t.Fatalf("人間の発言が復元されていない: %+v", r2.messages)
 	}
 }
 

@@ -65,7 +65,7 @@ func secretBaseDir() (string, error) {
 	return os.UserConfigDir()
 }
 
-// migrateLegacySecretDir は、改名前の保存先（…\ai_chat）が有新しい保存先がなければ、フォルダごと新しい名前に移す。
+// migrateLegacySecretDir は、改名前の保存先（…\ai_chat）があり新しい保存先がなければ、フォルダごと新しい名前に移す。
 // 認証トークンと設定を引き継ぐため。移したら移動元と移動先を返す（移すものがなければ空）。
 // AI_AGENT_ROOM_CONFIG_DIR で保存先を指定しているときは何もしない
 func migrateLegacySecretDir() (from, to string, err error) {
@@ -79,13 +79,13 @@ func migrateLegacySecretDir() (from, to string, err error) {
 	return migrateDir(filepath.Join(base, legacyAppDirName), filepath.Join(base, appDirName))
 }
 
-// migrateDir は from が有 to がなければ from を to に移す
+// migrateDir は from があり to がなければ from を to に移す
 func migrateDir(from, to string) (string, string, error) {
 	if st, err := os.Stat(from); err != nil || !st.IsDir() {
 		return "", "", nil
 	}
 	if _, err := os.Stat(to); err == nil {
-		return "", "", nil // 新しい保存先がすでにある（移行済み）。旧いフォルダは作者が確かめて消す
+		return "", "", nil // 新しい保存先がすでにある（移行済み）。旧いフォルダは人間が確かめて消す
 	}
 	if err := os.Rename(from, to); err != nil {
 		return "", "", err
@@ -124,7 +124,7 @@ func loadOrCreateAuthToken(logDir, secretDir string) (string, error) {
 		return "", err
 	}
 	if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("无法删除旧的 token 文件（%s）: %w", oldPath, err)
+		return "", fmt.Errorf("以前のトークンのファイルを消せません（%s）: %w", oldPath, err)
 	}
 	return t, nil
 }
@@ -142,7 +142,7 @@ func requireAuth(port int, token string, next http.Handler) http.Handler {
 		// 起動時の URL で開いたときは Cookie を渡し、アドレスバーからトークンを消す
 		if q := r.URL.Query().Get("token"); q != "" && r.Method == http.MethodGet && !strings.HasPrefix(r.URL.Path, "/api/") {
 			if !tokenEqual(q, token) {
-				writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "token 不正确。请用启动时显示的 URL 重新打开")
+				writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "トークンが正しくありません。起動時に表示された URL から開き直してください")
 				return
 			}
 			http.SetCookie(w, &http.Cookie{Name: name, Value: token, Path: "/", MaxAge: 365 * 24 * 3600, HttpOnly: true, SameSite: http.SameSiteStrictMode})
@@ -158,7 +158,7 @@ func requireAuth(port int, token string, next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			c, err := r.Cookie(name)
 			if err != nil || !tokenEqual(c.Value, token) {
-				writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "未认证。请用启动时显示的 URL 重新打开")
+				writeError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "認証されていません。起動時に表示された URL から開き直してください")
 				return
 			}
 		}

@@ -23,7 +23,7 @@ func TestSetWorkdirRestoresConversation(t *testing.T) {
 	if err := r.SetWorkdir(wd2); err != nil {
 		t.Fatal(err)
 	}
-	if a.sessionID != "" || len(r.messages) != 1 || !strings.Contains(r.messages[0].Text, "新对话") {
+	if a.sessionID != "" || len(r.messages) != 1 || !strings.Contains(r.messages[0].Text, "新しい会話") {
 		t.Fatalf("初めてのディレクトリは新しい会話のはず: session=%q messages=%+v", a.sessionID, r.messages)
 	}
 	r.mu.Lock()
@@ -38,7 +38,7 @@ func TestSetWorkdirRestoresConversation(t *testing.T) {
 	if a.sessionID != "sess-wd" || a.cursor != 1 || !a.paused {
 		t.Fatalf("会話IDか cursor が戻っていない、または一時停止が変わった: session=%q cursor=%d paused=%v", a.sessionID, a.cursor, a.paused)
 	}
-	if len(r.messages) != 2 || r.messages[0].Text != "wd の会話" || !strings.Contains(r.messages[1].Text, "恢复了该目录上次的对话") {
+	if len(r.messages) != 2 || r.messages[0].Text != "wd の会話" || !strings.Contains(r.messages[1].Text, "前回の会話を復元") {
 		t.Fatalf("発言が戻っていない: %+v", r.messages)
 	}
 	if r.nextID != r.messages[1].ID+1 {

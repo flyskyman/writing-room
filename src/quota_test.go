@@ -49,10 +49,10 @@ func TestParseCodexRateLimits(t *testing.T) {
 	if !isReply || err != nil || len(ws) != 2 {
 		t.Fatalf("ws=%+v isReply=%v err=%v", ws, isReply, err)
 	}
-	if ws[0].Label != "5 小时额度" || ws[0].UsedPercent != 91 || ws[0].Resets == "" {
+	if ws[0].Label != "5時間枠" || ws[0].UsedPercent != 91 || ws[0].Resets == "" {
 		t.Errorf("ws[0] = %+v", ws[0])
 	}
-	if ws[1].Label != "周额度" || ws[1].UsedPercent != 14 {
+	if ws[1].Label != "週枠" || ws[1].UsedPercent != 14 {
 		t.Errorf("ws[1] = %+v", ws[1])
 	}
 	// 認証エラーは失敗として返す
@@ -77,26 +77,26 @@ func TestParseAgyCredits(t *testing.T) {
 }
 
 func TestQuotaSummary(t *testing.T) {
-	if got := (Quota{}).summary(); got != "未知" {
+	if got := (Quota{}).summary(); got != "不明" {
 		t.Errorf("未取得 = %q", got)
 	}
-	if got := (Quota{Error: "boom"}).summary(); !strings.Contains(got, "获取失败") || !strings.Contains(got, "boom") {
+	if got := (Quota{Error: "boom"}).summary(); !strings.Contains(got, "取得に失敗") || !strings.Contains(got, "boom") {
 		t.Errorf("前回値なしの失敗 = %q", got)
 	}
-	q := Quota{Windows: []QuotaWindow{{Label: "5 小时额度", UsedPercent: 91, Resets: "2026-09-25 14:23"}}, Fetched: "2026-09-25 11:05:45"}
+	q := Quota{Windows: []QuotaWindow{{Label: "5時間枠", UsedPercent: 91, Resets: "2026-09-25 14:23"}}, Fetched: "2026-09-25 11:05:45"}
 	got := q.summary()
-	for _, want := range []string{"5 小时额度 91% 已用", "重置 2026-09-25 14:23", "获取于 2026-09-25 11:05:45"} {
+	for _, want := range []string{"5時間枠 91%使用", "リセット 2026-09-25 14:23", "取得 2026-09-25 11:05:45"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("summary に %q がない: %s", want, got)
 		}
 	}
 	q.Error = "timeout"
-	if got := q.summary(); !strings.Contains(got, "旧值") || !strings.Contains(got, "91%") {
-		t.Errorf("取得失敗時は前回値を残して旧值と示す: %s", got)
+	if got := q.summary(); !strings.Contains(got, "古い値") || !strings.Contains(got, "91%") {
+		t.Errorf("取得失敗時は前回値を残して古い値と示す: %s", got)
 	}
 	// Antigravity のクレジット残高は利用枠の残率と区別する
 	c := Quota{Credits: "0", Fetched: "2026-09-25 11:05:45"}.summary()
-	if !strings.Contains(c, "积分余额 0") || !strings.Contains(c, "不是常规额度的剩余比例") {
+	if !strings.Contains(c, "クレジット残高 0") || !strings.Contains(c, "利用枠の残率ではありません") {
 		t.Errorf("credits = %s", c)
 	}
 }
@@ -111,7 +111,7 @@ func (a quotaAdapter) FetchQuota(_ context.Context, _ string) (Quota, error) { r
 
 func TestRefreshQuotaKeepsPreviousOnFailure(t *testing.T) {
 	r, a := newTestRoom(t)
-	ad := quotaAdapter{q: Quota{Windows: []QuotaWindow{{Label: "周额度", UsedPercent: 14}}, Source: "test"}}
+	ad := quotaAdapter{q: Quota{Windows: []QuotaWindow{{Label: "週枠", UsedPercent: 14}}, Source: "test"}}
 	a.Adapter = ad
 	r.refreshQuota(a, true)
 	if !a.quota.has() || a.quota.Fetched == "" || a.quota.Error != "" {

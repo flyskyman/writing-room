@@ -15,8 +15,8 @@ import (
 type UsageTotal struct {
 	Jobs        int    `json:"jobs"`         // 集計したジョブ数（取得できなかったものを含む）
 	UnknownJobs int    `json:"unknown_jobs"` // 使用量を取得できなかったジョブ数
-	Input       int    `json:"input"`        // 取得済み分の入力トークン合計（缓存分を含む）
-	CachedInput int    `json:"cached_input"` // うち缓存から読んだ分
+	Input       int    `json:"input"`        // 取得済み分の入力トークン合計（キャッシュ分を含む）
+	CachedInput int    `json:"cached_input"` // うちキャッシュから読んだ分
 	Output      int    `json:"output"`       // 取得済み分の出力トークン合計
 	Updated     string `json:"updated"`      // 最終更新時刻（ローカル時刻）
 }
@@ -36,14 +36,14 @@ func (t *UsageTotal) add(u Usage) {
 // summary はプロンプトに添える利用状況の文面
 func (t UsageTotal) summary() string {
 	if t.Jobs == 0 {
-		return "无记录"
+		return "記録なし"
 	}
 	if t.Jobs == t.UnknownJobs {
-		return fmt.Sprintf("未知（%d 次运行全部未取得）", t.Jobs)
+		return fmt.Sprintf("不明（%d回の実行すべてで取得できず）", t.Jobs)
 	}
-	s := fmt.Sprintf("%d 次运行：输入 %d（其中缓存 %d）/ 输出 %d token", t.Jobs, t.Input, t.CachedInput, t.Output)
+	s := fmt.Sprintf("%d回の実行で 入力 %d（うちキャッシュ %d）/ 出力 %d トークン", t.Jobs, t.Input, t.CachedInput, t.Output)
 	if t.UnknownJobs > 0 {
-		s += fmt.Sprintf("，另有未取得用量的运行 %d 次", t.UnknownJobs)
+		s += fmt.Sprintf("、ほかに取得できなかった実行 %d回", t.UnknownJobs)
 	}
 	return s
 }

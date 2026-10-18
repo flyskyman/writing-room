@@ -97,7 +97,7 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 	}
 	if len(w.buf) > progressMaxLine {
 		w.buf, w.skip = nil, true
-		w.onLine("（过长的行已省略）")
+		w.onLine("（長すぎる行を省略しました）")
 	}
 	return len(p), nil
 }

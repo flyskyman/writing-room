@@ -36,7 +36,7 @@ func TestFileVersionsDiff(t *testing.T) {
 	}
 
 	write("edit.go", "new body")
-	// 更新時刻の分解能が粗いファイル系统でも差分が出るよう、時刻を明示してずらす
+	// 更新時刻の分解能が粗いファイルシステムでも差分が出るよう、時刻を明示してずらす
 	future := time.Now().Add(2 * time.Second)
 	os.Chtimes(filepath.Join(dir, "edit.go"), future, future)
 	write("sub/new.go", "hello")
@@ -58,7 +58,7 @@ func TestFileVersionsDiff(t *testing.T) {
 	}
 
 	text := formatFileVersions("Claude Code 2", changes)
-	for _, want := range []string{"Claude Code 2 本轮期间改动的文件（3 个）", "`edit.go` 更新", "sha256:ae907ab9", "`gone.go` 删除", "`sub/new.go` 新增"} {
+	for _, want := range []string{"Claude Code 2 のターンの間に変わったファイル（3件）", "`edit.go` 更新", "sha256:ae907ab9", "`gone.go` 削除", "`sub/new.go` 新規"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%q を含まない:\n%s", want, text)
 		}
@@ -83,7 +83,7 @@ func TestFileVersionsListLimit(t *testing.T) {
 	for range fileVerMaxList + 5 {
 		changes = append(changes, fileChange{path: "f", deleted: true})
 	}
-	if text := formatFileVersions("x", changes); !strings.Contains(text, "另有 5 个") {
+	if text := formatFileVersions("x", changes); !strings.Contains(text, "ほか 5件") {
 		t.Errorf("上限を超えた分がまとめられていない:\n%s", text)
 	}
 }

@@ -88,7 +88,7 @@ func TestEditingOwnerLifecycle(t *testing.T) {
 	if !slices.Equal(st.Agents[0].Editing, []string{"chat.go"}) {
 		t.Errorf("状態に作業中のファイルが出ていない: %+v", st.Agents[0])
 	}
-	if p := promptFor(y); !strings.Contains(p, "@x 正在处理 `chat.go`。在其报告完成前，请不要编辑或评审该文件。") {
+	if p := promptFor(y); !strings.Contains(p, "@x が `chat.go` を作業中。完了報告まで、このファイルの編集とレビューは待ってください。") {
 		t.Errorf("ほかのエージェントの依頼文に警告がない:\n%s", p)
 	}
 	if p := promptFor(x); strings.Contains(p, "作業中のファイル") {

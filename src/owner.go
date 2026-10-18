@@ -151,12 +151,12 @@ func (r *Room) writeEditingLocked(b *strings.Builder, a *Agent) {
 		for i, p := range o.editing {
 			files[i] = "`" + p + "`"
 		}
-		lines = append(lines, fmt.Sprintf("- @%s 正在处理 %s。在其报告完成前，请不要编辑或评审该文件。", o.ID, strings.Join(files, "、")))
+		lines = append(lines, fmt.Sprintf("- @%s が %s を作業中。完了報告まで、このファイルの編集とレビューは待ってください。", o.ID, strings.Join(files, "、")))
 	}
 	if len(lines) == 0 {
 		return
 	}
-	b.WriteString("处理中的文件（AI Agent Room 从 CLI 输出检出）:\n")
+	b.WriteString("作業中のファイル（AI Agent Room が CLI の出力から検出）:\n")
 	b.WriteString(strings.Join(lines, "\n"))
 	b.WriteString("\n\n")
 }

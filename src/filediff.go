@@ -1,7 +1,7 @@
 package main
 
 // 変更差分の表示（案 9）: ターンの前のファイルの中身を覚えておき、ターンの間に変わったファイルの
-// 差分（unified 形式）を logs/diffs/ に書き出す。系统メッセージには行数（+N -M）と差分ファイルのパスだけを載せ、
+// 差分（unified 形式）を logs/diffs/ に書き出す。システムメッセージには行数（+N -M）と差分ファイルのパスだけを載せ、
 // エージェントに渡す文脈が膨らまないようにする。git がなくても使える。
 //
 // 中身は、パスと更新時刻・大きさが変わらない間は読み直さない（初回だけ全部読む）。
@@ -329,7 +329,7 @@ func fileVersionsMessage(name, agentID, workdir, logDir string, before fileSnaps
 	msg := formatFileVersions(name, changes)
 	path, err := writeFileDiffs(logDir, agentID, time.Now(), changes, diffs)
 	if path != "" {
-		msg += fmt.Sprintf("\n差异: `%s`", path)
+		msg += fmt.Sprintf("\n差分: `%s`", path)
 	}
 	return msg, err
 }

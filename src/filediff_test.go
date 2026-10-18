@@ -69,7 +69,7 @@ func TestFileVersionsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"`edit.go` 更新", "+1 -1", "`gone.go` 删除 +0 -1", "`new.go` 新增", "差异: `"} {
+	for _, want := range []string{"`edit.go` 更新", "+1 -1", "`gone.go` 削除 +0 -1", "`new.go` 新規", "差分: `"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("%q を含まない:\n%s", want, msg)
 		}
@@ -77,8 +77,8 @@ func TestFileVersionsMessage(t *testing.T) {
 	if line := strings.SplitN(strings.SplitAfter(msg, "`bin.dat`")[1], "\n", 2)[0]; strings.Contains(line, "+") {
 		t.Errorf("バイナリに行数が付いた:\n%s", msg)
 	}
-	i := strings.Index(msg, "差异: `")
-	path := strings.TrimSuffix(msg[i+len("差异: `"):], "`")
+	i := strings.Index(msg, "差分: `")
+	path := strings.TrimSuffix(msg[i+len("差分: `"):], "`")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestPruneFileDiffs(t *testing.T) {
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 
-// dotenv の変更前後の値を缓存にも差分ログにも残さない。
+// dotenv の変更前後の値をキャッシュにも差分ログにも残さない。
 func TestDotenvExcludedFromDiffs(t *testing.T) {
 	for _, name := range []string{".env", ".env.local", ".env.production", ".ENV.DEVELOPMENT"} {
 		t.Run(name, func(t *testing.T) {

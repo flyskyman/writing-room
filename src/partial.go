@@ -49,7 +49,7 @@ func partialFrom(ctx context.Context) func(line string) {
 }
 
 // newClaudePartial は stream-json（--include-partial-messages）の text_delta を積み上げる parser を返す。
-// メッセージの始まり（message_start）で空にする。thinking やサブエージェント（parent_tool_use_id 有）の本文は使わない
+// メッセージの始まり（message_start）で空にする。thinking やサブエージェント（parent_tool_use_id あり）の本文は使わない
 func newClaudePartial() func(string) (string, bool) {
 	var b strings.Builder
 	return func(line string) (string, bool) {

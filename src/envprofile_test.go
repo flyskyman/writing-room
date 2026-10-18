@@ -19,18 +19,18 @@ func TestEnvProfileWithoutShells(t *testing.T) {
 	}
 
 	env := detectEnvironment()
-	if text := env.text(langJa); !strings.Contains(text, "未找到") {
+	if text := env.text(langJa); !strings.Contains(text, "見つかりません") {
 		t.Fatalf("見つからないことが書かれていない:\n%s", text)
 	}
 	r, _ := newTestRoom(t)
 	r.SetEnvProfile(env, t.TempDir(), t.TempDir()) // rules.md がない
 	m := lastMessage(r)
-	if m.Kind != "system" || !strings.Contains(m.Text, "未找到") || !strings.Contains(m.Text, r.workdir) || !strings.Contains(m.Text, "■ 环境") || !strings.Contains(m.Text, "rules.md 等）") || strings.Contains(m.Text, "{{") {
+	if m.Kind != "system" || !strings.Contains(m.Text, "見つかりません") || !strings.Contains(m.Text, r.workdir) || !strings.Contains(m.Text, "■ 環境") || !strings.Contains(m.Text, "rules.md など）は編集しない") || strings.Contains(m.Text, "{{") {
 		t.Fatalf("プロフィールの発言 %#v", m)
 	}
 }
 
-// バージョンは最初の空でない行だけを使う。取得に失敗しても「有」と書く
+// バージョンは最初の空でない行だけを使う。取得に失敗しても「あり」と書く
 func TestProbeShell(t *testing.T) {
 	oldLook, oldRun := envLookPath, envRunVersion
 	t.Cleanup(func() { envLookPath, envRunVersion = oldLook, oldRun })
@@ -43,7 +43,7 @@ func TestProbeShell(t *testing.T) {
 	envRunVersion = func(string, []string) (string, error) { return "", errors.New("timeout") }
 	got := probeShell(shellProbe{"pwsh", []string{"pwsh"}, nil})
 	e := &envInfo{OS: "test", Shells: []shellFound{got}}
-	if ja, en := e.text(langJa), e.text(langEn); !strings.Contains(ja, "pwsh: 有") || !strings.Contains(en, "pwsh: available (version unknown)") {
+	if ja, en := e.text(langJa), e.text(langEn); !strings.Contains(ja, "pwsh: あり") || !strings.Contains(en, "pwsh: available (version unknown)") {
 		t.Errorf("got %+v\n%s\n%s", got, ja, en)
 	}
 }
@@ -79,14 +79,14 @@ func TestEnvProfileCapabilities(t *testing.T) {
 	dir := t.TempDir()
 
 	r.SetEnvProfile(&envInfo{OS: "test"}, dir, "") // capabilities.json がない
-	if m := lastMessage(r); !strings.Contains(m.Text, "■ 参与者\n- @human（作者）:") || !strings.Contains(m.Text, "■ 代理") || !strings.Contains(m.Text, "- @x（X）: 写入 未知 / 运行命令 未知 / 生产操作 未知") {
+	if m := lastMessage(r); !strings.Contains(m.Text, "■ 参加者\n- @human（人間）:") || !strings.Contains(m.Text, "■ エージェント") || !strings.Contains(m.Text, "- @x（X）: 書き込み 不明 / コマンド実行 不明 / 本番操作 不明") {
 		t.Fatalf("宣言がないときの表示:\n%s", m.Text)
 	}
 	if err := os.WriteFile(filepath.Join(dir, capabilitiesFileName), []byte(`{"x": {"write": true, "prod": false}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	r.Reset()
-	if m := lastMessage(r); !strings.Contains(m.Text, "- @x（X）: 写入 可 / 运行命令 未知 / 生产操作 不可") {
+	if m := lastMessage(r); !strings.Contains(m.Text, "- @x（X）: 書き込み 可 / コマンド実行 不明 / 本番操作 不可") {
 		t.Fatalf("宣言したときの表示:\n%s", m.Text)
 	}
 	// 壊れた JSON でも投稿はする（全員「不明」）
@@ -94,7 +94,7 @@ func TestEnvProfileCapabilities(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.Reset()
-	if m := lastMessage(r); !strings.Contains(m.Text, "写入 未知") {
+	if m := lastMessage(r); !strings.Contains(m.Text, "書き込み 不明") {
 		t.Fatalf("壊れた宣言のときの表示:\n%s", m.Text)
 	}
 }
@@ -137,7 +137,7 @@ func TestEnvProfileEnglish(t *testing.T) {
 		t.Fatalf("英語になっていない:\n%s", m.Text)
 	}
 
-	// 作者が書いた rules.md は英語の設定でも使う
+	// 人間が書いた rules.md は英語の設定でも使う
 	os.WriteFile(filepath.Join(cfg, rulesFileName), []byte("- 独自のルール"), 0o644)
 	r.Reset()
 	if m := lastMessage(r); !strings.Contains(m.Text, "独自のルール") {
@@ -151,7 +151,7 @@ func TestEnvProfileEnglish(t *testing.T) {
 	// 日本語に戻すと rules.en.md は使わない
 	r.SetLang(langJa)
 	r.Reset()
-	if m := lastMessage(r); !strings.Contains(m.Text, "独自のルール") || !strings.Contains(m.Text, "■ 环境") {
+	if m := lastMessage(r); !strings.Contains(m.Text, "独自のルール") || !strings.Contains(m.Text, "■ 環境") {
 		t.Fatalf("日本語に戻っていない:\n%s", m.Text)
 	}
 }
