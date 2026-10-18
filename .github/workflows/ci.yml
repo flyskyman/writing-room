@@ -10,5 +10,5 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: src/go.mod
-      - run: go vet -C src ./...
-      - run: go test -C src ./...
+      # 复制 → 翻译 → vet/test（日文原样 src/ 与翻译副本 run/build/src/）→ build
+      - run: sh tools/rebuild.sh --no-restart
