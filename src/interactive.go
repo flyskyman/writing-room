@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	ErrInteractiveUnsupported = errors.New("此环境不能打开交互窗口（只在 Windows 桌面上可用）")
-	ErrInteractiveRunning     = errors.New("这位代理已经打开了交互窗口")
+	ErrInteractiveUnsupported = errors.New("この環境では対話モードの窓を開けません（Windows のデスクトップで動いているときだけ使えます）")
+	ErrInteractiveRunning     = errors.New("このエージェントはすでに対話モードの窓を開いています")
 )
 
 // InteractiveStarter は、対話モードで起動するコマンドを返せる CLI のアダプタが実装する。
@@ -67,14 +67,14 @@ func (a *agyAdapter) InteractiveCommand(sessionID, model, permission string) (st
 type consoleSession interface {
 	Pid() int                        // ログ用（分からなければ 0）
 	Wait() (exitCode int, err error) // CLI が終わるか Stop されるまで待つ
-	Stop()                           // 作者の［対話を終了］で待つのをやめる（窓は閉じない）
-	AutoDetect() bool                // 窓が閉じたことを自动検知できるか（できなければ画面に［対話を終了］を出す）
+	Stop()                           // 人間の［対話を終了］で待つのをやめる（窓は閉じない）
+	AutoDetect() bool                // 窓が閉じたことを自動で検知できるか（できなければ画面に［対話を終了］を出す）
 }
 
 var (
-	errConsoleStopped   = errors.New("作者结束了交互")
-	ErrNotInteractive   = errors.New("这位代理没有打开交互窗口")
-	ErrInteractiveNoEnd = errors.New("在此环境下关闭窗口会自动回来")
+	errConsoleStopped   = errors.New("人間が対話を終了にしました")
+	ErrNotInteractive   = errors.New("このエージェントは対話モードの窓を開いていません")
+	ErrInteractiveNoEnd = errors.New("この環境では、窓を閉じると自動で戻ります")
 )
 
 // processSession はプロセスの終了を待つ窓（Windows。テストでも使う）
@@ -143,21 +143,21 @@ func (r *Room) StartInteractive(id string) error {
 	a.interactive, a.console = true, cs
 	linked := a.sessionID != ""
 	r.log.Info("agent.interactive.start", "agent", a.ID, "pid", cs.Pid(), "session_id", a.sessionID, "linked", linked, "cwd", r.workdir, "auto_detect", cs.AutoDetect())
-	how := "沿用当前会话"
+	how := "今のセッションを引き継いでいます"
 	if !linked {
-		how = "新会话，与本对话无关联"
+		how = "新しいセッションで、この会話とは結び付けていません"
 	}
-	until := "直到关闭窗口"
+	until := "窓を閉じるまで"
 	if !cs.AutoDetect() {
-		until = "直到退出 CLI 或按下页面的［结束交互］"
+		until = "CLI を終了するか、画面の［対話を終了］を押すまで"
 	}
-	r.postLocked("system", fmt.Sprintf("已在新窗口以交互模式打开 %s（%s）。%s，%s 不参与对话。", a.Name, how, until, a.Name), "system")
+	r.postLocked("system", fmt.Sprintf("%s を対話モードで新しい窓に開きました（%s）。%s、%s は会話に参加しません。", a.Name, how, until, a.Name), "system")
 	r.pushStatusLocked()
 	go r.waitInteractive(a, cs)
 	return nil
 }
 
-// EndInteractive は作者の［対話を終了］で、窓が閉じたことを検知できない環境（macOS・Linux）のエージェントを会話に戻す
+// EndInteractive は人間の［対話を終了］で、窓が閉じたことを検知できない環境（macOS・Linux）のエージェントを会話に戻す
 func (r *Room) EndInteractive(id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -190,9 +190,9 @@ func (r *Room) waitInteractive(a *Agent, cs consoleSession) {
 	if r.agent(a.ID) != a { // 窓を開いている間に削除された
 		return
 	}
-	msg := fmt.Sprintf("%s 的交互窗口已关闭，恢复参与对话。", a.Name)
+	msg := fmt.Sprintf("%s の対話モードの窓が閉じました。会話への参加を再開します。", a.Name)
 	if errors.Is(err, errConsoleStopped) {
-		msg = fmt.Sprintf("已结束 %s 的交互模式，恢复参与对话（窗口若仍开着请关闭，避免同一会话被重复使用）。", a.Name)
+		msg = fmt.Sprintf("%s の対話モードを終了にしました。会話への参加を再開します（窓がまだ開いていれば閉じてください。同じセッションを二重に使わないため）。", a.Name)
 	}
 	r.postLocked("system", msg, "system")
 	// フリートーク中なら、戻ったエージェントも聞き始める（SetPaused の再開と同じ）

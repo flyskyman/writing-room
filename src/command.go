@@ -1,6 +1,6 @@
 package main
 
-// 発言中のコードブロックを、作者が画面のボタンで実行する（修正案 7.1）。
+// 発言中のコードブロックを、人間が画面のボタンで実行する（修正案 7.1）。
 // 実行 API が受け取るのは発言IDとブロック番号だけで、本文は保存済みの発言（Message.Blocks）から取り直す。
 // 1つのブロックを実行できるのは1回だけ。実行は同時に commandMaxRunning 件まで（案12）。結果は伏せ字にしてから投稿し、進行役だけを呼び出す。
 
@@ -30,18 +30,18 @@ const (
 )
 
 var (
-	ErrCommandNotFound   = errors.New("找不到发言或代码块")
-	ErrCommandNotRunable = errors.New("不是可运行语言（powershell、pwsh、cmd、bat、bash、sh）的代码块")
-	ErrCommandExpired    = errors.New("发言已超过 1 小时，不能运行")
-	ErrCommandUsed       = errors.New("这个代码块已经运行过。要重跑请在新发言里再给出")
-	ErrCommandBusy       = fmt.Errorf("同时最多运行 %d 条命令。请等某条结束后再运行", commandMaxRunning)
-	ErrCommandForbidden  = errors.New("当前设置只允许运行主持发言里的代码块")
-	ErrCommandConfirm    = errors.New("这是非主持发言里的代码块。请确认后再运行")
-	ErrCommandNotRunning = errors.New("没有在运行")
+	ErrCommandNotFound   = errors.New("発言またはブロックが見つかりません")
+	ErrCommandNotRunable = errors.New("実行できる言語（powershell、pwsh、cmd、bat、bash、sh）のブロックではありません")
+	ErrCommandExpired    = errors.New("発言から1時間を過ぎたため実行できません")
+	ErrCommandUsed       = errors.New("このブロックはすでに実行しました。再実行するには新しい発言で出してもらってください")
+	ErrCommandBusy       = fmt.Errorf("同時に実行できるコマンドは%d件までです。どれかが終わってから実行してください", commandMaxRunning)
+	ErrCommandForbidden  = errors.New("進行役の発言のブロックだけが実行できる設定です")
+	ErrCommandConfirm    = errors.New("進行役以外の発言のブロックです。確認してから実行してください")
+	ErrCommandNotRunning = errors.New("実行中ではありません")
 )
 
 // ErrCommandUnsupportedOS は、Windows 以外で cmd・bat のブロックを実行しようとしたとき
-var ErrCommandUnsupportedOS = errors.New("cmd/bat 代码块只能在 Windows 上运行")
+var ErrCommandUnsupportedOS = errors.New("cmd・bat のブロックは Windows でしか実行できません")
 
 // CommandRun はブロック1つの実行状態。画面には status イベントの commands で配信する
 type CommandRun struct {
@@ -60,7 +60,7 @@ type CommandRun struct {
 	gen      int
 	startID  int // 実行開始の system の発言のID（案13）。実行結果はこの発言への返信にする
 	cancel   context.CancelFunc
-	canceled bool // 作者の［中止］または「新しい会話」で止めた
+	canceled bool // 人間の［中止］または「新しい会話」で止めた
 }
 
 // CommandRequest は実行 API の本文
@@ -70,7 +70,7 @@ type CommandRequest struct {
 	Private    bool   `json:"private"`     // 結果（出力）をチャットに出さない
 	NoLog      bool   `json:"no_log"`      // 出力の全文ログを残さない
 	TimeoutMin int    `json:"timeout_min"` // 時間制限（分）。0 なら既定の10分
-	// Auto は、画面を見ている間に作者がボタンを押さずに実行したこと。確認のいらないブロック
+	// Auto は、画面を見ている間に人間がボタンを押さずに実行したこと。確認のいらないブロック
 	// （進行役の発言で、保護するパスに触れず、禁止ルールを渡せるエージェントのもの）だけを受け付ける
 	Auto bool `json:"auto"`
 }
@@ -155,10 +155,10 @@ func (r *Room) RunBlock(msgID, block int, req CommandRequest) (CommandRun, error
 	// 実行開始をチャットログにも残す（案13）。Kind が system なので、エージェントのターンのきっかけにはしない
 	how := ""
 	if req.Auto {
-		how = "自动"
+		how = "自動で"
 	}
 	start := r.appendMessageLocked(Message{From: "system", Kind: "system", ReplyTo: msgID,
-		Text: fmt.Sprintf("▶ #%d 的代码块 %d 已用 %s %s开始运行（目录: %s，时限: %d 分钟）", msgID, block+1, shell, how, cwd, int(timeout/time.Minute))})
+		Text: fmt.Sprintf("▶ #%d のブロック %d を %s で%s実行し始めました（作業フォルダ: %s、時間制限: %d分）", msgID, block+1, shell, how, cwd, int(timeout/time.Minute))})
 	run.startID = start.ID
 	r.pushCommandLocked(run)
 	go r.execCommand(ctx, run, msg.Blocks[block].Code, logPath)
@@ -227,7 +227,7 @@ func (r *Room) execCommand(ctx context.Context, run *CommandRun, code, logPath s
 		if logf != nil {
 			w = io.MultiWriter(out, logf)
 		} else {
-			r.log.Warn("command.log", "error", "无法创建日志文件")
+			r.log.Warn("command.log", "error", "ログファイルを作成できません")
 		}
 	}
 	exitCode, err := runScript(ctx, run.Shell, code, run.Cwd, w)
@@ -251,7 +251,7 @@ func (r *Room) execCommand(ctx context.Context, run *CommandRun, code, logPath s
 		run.State = "timeout"
 	case err != nil:
 		run.State, run.Error = "failed", err.Error()
-		fmt.Fprintf(out, "\n[ai-agent-room] 无法运行: %v\n", err)
+		fmt.Fprintf(out, "\n[ai-agent-room] 実行できません: %v\n", err)
 	case exitCode == 0:
 		run.State = "done"
 	default:
@@ -283,17 +283,17 @@ func (r *Room) pushCommandLocked(run *CommandRun) {
 // formatCommandResult は実行結果の発言の本文を作る
 func formatCommandResult(run *CommandRun) string {
 	var b strings.Builder
-	status := map[string]string{"done": "成功", "failed": "失敗", "canceled": "中止", "timeout": "超时"}[run.State]
-	fmt.Fprintf(&b, "命令运行结果: #%d 的代码块 %d（%s，目录 %s）→ %s", run.MsgID, run.Block+1, run.Shell, run.Cwd, status)
+	status := map[string]string{"done": "成功", "failed": "失敗", "canceled": "中止", "timeout": "時間切れ"}[run.State]
+	fmt.Fprintf(&b, "コマンドの実行結果: #%d のブロック%d（%s、作業フォルダ %s）→ %s", run.MsgID, run.Block+1, run.Shell, run.Cwd, status)
 	if run.ExitCode != nil {
-		fmt.Fprintf(&b, "，退出码 %d", *run.ExitCode)
+		fmt.Fprintf(&b, "、終了コード %d", *run.ExitCode)
 	}
-	fmt.Fprintf(&b, "（%d 秒）", (run.Ended-run.Started)/1000)
+	fmt.Fprintf(&b, "（%d秒）", (run.Ended-run.Started)/1000)
 	switch {
 	case run.Private:
-		b.WriteString("\n按作者指定，输出不发到聊天。")
+		b.WriteString("\n出力は、人間の指定によりチャットに出していません。")
 	case run.Tail == "":
-		b.WriteString("\n没有输出。")
+		b.WriteString("\n出力はありません。")
 	default:
 		// 出力中の ``` でコードブロックが崩れないようにする
 		fmt.Fprintf(&b, "\n```text\n%s\n```", strings.ReplaceAll(run.Tail, "```", "`\u200b``"))
@@ -302,7 +302,7 @@ func formatCommandResult(run *CommandRun) string {
 }
 
 // commandNotifyTargetLocked は実行結果の発言で呼び出すエージェントを返す。
-// 進行役がいれば進行役、いなければブロックを書いたエージェント（作者の発言なら呼び出さない）
+// 進行役がいれば進行役、いなければブロックを書いたエージェント（人間の発言なら呼び出さない）
 func (r *Room) commandNotifyTargetLocked(m Message) string {
 	if m.Kind != "command_result" {
 		return ""
@@ -359,7 +359,7 @@ func runScript(ctx context.Context, shell, code, cwd string, out io.Writer) (int
 		ext = ".sh"
 		body = strings.ReplaceAll(code, "\r\n", "\n") + "\n"
 	default:
-		return -1, fmt.Errorf("不支持的 shell: %s", shell)
+		return -1, fmt.Errorf("未対応のシェルです: %s", shell)
 	}
 	f, err := os.CreateTemp("", "ai-agent-room-cmd-*"+ext)
 	if err != nil {
@@ -419,7 +419,7 @@ func shellCommand(shell, path string) (string, []string, error) {
 		exe, err := exec.LookPath("pwsh")
 		if err != nil {
 			if exe, err = exec.LookPath("powershell"); err != nil {
-				return "", nil, errors.New("找不到 pwsh 和 powershell")
+				return "", nil, errors.New("pwsh と powershell が見つかりません")
 			}
 		}
 		return exe, []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path}, nil
@@ -433,11 +433,11 @@ func shellCommand(shell, path string) (string, []string, error) {
 					return p, []string{path}, nil
 				}
 			}
-			return "", nil, errors.New("找不到 Git Bash")
+			return "", nil, errors.New("Git Bash が見つかりません")
 		}
 		return "bash", []string{path}, nil
 	}
-	return "", nil, fmt.Errorf("不支持的 shell: %s", shell)
+	return "", nil, fmt.Errorf("未対応のシェルです: %s", shell)
 }
 
 // ---- 出力 -----------------------------------------------------------------------
@@ -475,7 +475,7 @@ func commandTail(s string) string {
 	s = strings.Trim(s, "\n ")
 	lines := strings.Split(s, "\n")
 	if len(lines) > commandTailLines {
-		lines = append([]string{fmt.Sprintf("…（省略开头 %d 行）", len(lines)-commandTailLines)}, lines[len(lines)-commandTailLines:]...)
+		lines = append([]string{fmt.Sprintf("…（先頭の %d 行を省略）", len(lines)-commandTailLines)}, lines[len(lines)-commandTailLines:]...)
 	}
 	s = strings.Join(lines, "\n")
 	if len(s) > commandTailBytes {
@@ -488,11 +488,11 @@ var secretRes = []struct {
 	re   *regexp.Regexp
 	repl string
 }{
-	{regexp.MustCompile(`\b(AKIA|ASIA)[0-9A-Z]{16}\b`), "[已脱敏:AWS 密钥]"},
-	{regexp.MustCompile(`\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}`), "[已脱敏:JWT]"},
-	{regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)`), "[已脱敏:私钥]"},
+	{regexp.MustCompile(`\b(AKIA|ASIA)[0-9A-Z]{16}\b`), "[伏せ字:AWSキー]"},
+	{regexp.MustCompile(`\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}`), "[伏せ字:JWT]"},
+	{regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)`), "[伏せ字:秘密鍵]"},
 	// キー名は残し、値だけを伏せる（aws_secret_access_key = xxx、"password": "xxx"、SECRET=xxx など）
-	{regexp.MustCompile(`(?i)((?:aws_secret_access_key|aws_session_token|secret[\w-]*|password|passwd|pwd|token|api[_-]?key)["']?\s*[:=]\s*["']?)[^\s"',;]+`), "${1}[已脱敏]"},
+	{regexp.MustCompile(`(?i)((?:aws_secret_access_key|aws_session_token|secret[\w-]*|password|passwd|pwd|token|api[_-]?key)["']?\s*[:=]\s*["']?)[^\s"',;]+`), "${1}[伏せ字]"},
 }
 
 // 出力の末尾だけを残すと秘密鍵の BEGIN の行が切れていることがあるので、END の行と、Base64 だけの長い行も伏せる
@@ -507,11 +507,11 @@ func redactSecrets(s string) string {
 	for _, p := range secretRes {
 		s = p.re.ReplaceAllString(s, p.repl)
 	}
-	s = pemEndRe.ReplaceAllString(s, "[已脱敏:私钥]")
+	s = pemEndRe.ReplaceAllString(s, "[伏せ字:秘密鍵]")
 	// 大文字と小文字が混ざる行だけを対象にし、16進のハッシュ（小文字だけ）などは残す
 	return base64LineRe.ReplaceAllStringFunc(s, func(line string) string {
 		if mixedCaseLine.MatchString(line) {
-			return "[已脱敏:Base64]"
+			return "[伏せ字:Base64]"
 		}
 		return line
 	})

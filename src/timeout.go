@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	ErrAgentThinking = errors.New("这位代理正在运行")
-	ErrAgentPaused   = errors.New("已暂停的代理不能启动")
-	ErrNotRetryable  = errors.New("当前不能重试")
+	ErrAgentThinking = errors.New("このエージェントは実行中です")
+	ErrAgentPaused   = errors.New("一時停止中のエージェントは起動できません")
+	ErrNotRetryable  = errors.New("再試行できる状態ではありません")
 )
 
 // turnTimeoutForLocked は a の1ターンの上限時間を返す（エージェントごとの設定がなければ会話全体の設定）
@@ -79,7 +79,7 @@ func (r *Room) RetryAgent(id string) error {
 		return ErrAgentThinking
 	}
 	r.log.Info("agent.retry", "agent", a.ID)
-	r.postLocked("system", fmt.Sprintf("再次启动 %s。", a.Name), "system")
+	r.postLocked("system", fmt.Sprintf("%s をもう一度起動します。", a.Name), "system")
 	if r.free != nil { // フリートーク中は待機ループが起動する（外れていたら始め直す）
 		if a.state == "idle" {
 			a.state = "listening"
@@ -93,7 +93,7 @@ func (r *Room) RetryAgent(id string) error {
 		r.pushStatusLocked()
 		return nil
 	}
-	r.hops = 0 // 作者の操作による再試行なので、自動ターンの上限で止めない
+	r.hops = 0 // 人間の操作による再試行なので、自動ターンの上限で止めない
 	r.enqueueLocked([]string{a.ID})
 	return nil
 }

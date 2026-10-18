@@ -20,14 +20,14 @@ type roomSettings struct {
 	DelaySec     *int    `json:"delay_sec,omitempty"`
 	RotateTokens *int    `json:"rotate_tokens,omitempty"`
 	Leader       *string `json:"leader,omitempty"`
-	// CommandLeaderOnly は、進行役（と作者）の発言のコードブロックだけを実行できるようにする（修正案 7.1）
+	// CommandLeaderOnly は、進行役（と人間）の発言のコードブロックだけを実行できるようにする（修正案 7.1）
 	CommandLeaderOnly *bool `json:"command_leader_only,omitempty"`
 	// TurnTimeoutSec は1ターンの上限時間（秒）。AgentTimeoutSec はエージェントごとの上書き（案 8.3）
 	TurnTimeoutSec  *int           `json:"turn_timeout_sec,omitempty"`
 	AgentTimeoutSec map[string]int `json:"agent_timeout_sec,omitempty"`
-	// AgentModel は作者が画面で選んだモデル（エージェント ID ごと。默认模型は入れない）（案2）
+	// AgentModel は人間が画面で選んだモデル（エージェント ID ごと。既定のモデルは入れない）（案2）
 	AgentModel map[string]string `json:"agent_model,omitempty"`
-	// AgentPermission は作者が選んだ権限の段階（エージェント ID ごと。既定は入れない）（案8）
+	// AgentPermission は人間が選んだ権限の段階（エージェント ID ごと。既定は入れない）（案8）
 	AgentPermission map[string]string `json:"agent_permission,omitempty"`
 	// Lang は言語の設定（"ja" / "en"）。起動時の環境とルールの投稿に使うので、画面だけでなくサーバにも保存する
 	Lang *string `json:"lang,omitempty"`
@@ -162,7 +162,7 @@ func (r *Room) LoadSettings(skip map[string]bool) {
 	r.log.Info("settings.load")
 }
 
-// SetCommandLeaderOnly は、コードブロックを実行できる発言を進行役（と作者）のものに限るかを設定する
+// SetCommandLeaderOnly は、コードブロックを実行できる発言を進行役（と人間）のものに限るかを設定する
 func (r *Room) SetCommandLeaderOnly(on bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -178,7 +178,7 @@ const (
 )
 
 // ErrInvalidLang は対応していない言語を指定したとき
-var ErrInvalidLang = errors.New("不支持的语言（ja / en / zh）")
+var ErrInvalidLang = errors.New("対応していない言語です（ja / en / zh）")
 
 // SetLang は言語の設定を変える。環境とルールの投稿は、次に投稿するとき（起動時・新しい会話の開始時）からこの言語になる。
 // 今の会話の投稿は書き直さない（エージェントはすでに読んでいる）
@@ -204,8 +204,8 @@ func (r *Room) langLocked() string {
 	return langJa
 }
 
-// restoreAgentModel は保存した作者のモデル選択を戻す（案2）。消えたエージェントや、候補にないモデルは戻さずにログを出す。
-// 起動時の復元なので、チャットには系统メッセージを出さない
+// restoreAgentModel は保存した人間のモデル選択を戻す（案2）。消えたエージェントや、候補にないモデルは戻さずにログを出す。
+// 起動時の復元なので、チャットにはシステムメッセージを出さない
 func (r *Room) restoreAgentModel(id, model string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -215,7 +215,7 @@ func (r *Room) restoreAgentModel(id, model string) {
 		return
 	}
 	if !slices.ContainsFunc(a.Adapter.Models(), func(o ModelOption) bool { return o.ID == model }) {
-		r.log.Warn("settings.load.agent_model", "agent", id, "model", model, "error", "模型不在候选里")
+		r.log.Warn("settings.load.agent_model", "agent", id, "model", model, "error", "候補にないモデルです")
 		return
 	}
 	a.modelSel, a.humanModel = model, model

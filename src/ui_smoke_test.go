@@ -25,11 +25,11 @@ func TestUISmoke(t *testing.T) {
 	}
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("Node.js が未找到")
+		t.Skip("Node.js が見つかりません")
 	}
 	edge := findEdgeForUISmoke()
 	if edge == "" {
-		t.Skip("Microsoft Edge が未找到（AI_AGENT_ROOM_EDGE で指定できます）")
+		t.Skip("Microsoft Edge が見つかりません（AI_AGENT_ROOM_EDGE で指定できます）")
 	}
 
 	src, err := os.Getwd() // go test はパッケージのフォルダ（src）で実行される

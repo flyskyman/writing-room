@@ -61,19 +61,19 @@ func TestPermissionKeepsDeny(t *testing.T) {
 			t.Errorf("段階 %q の引数が --settings を含む（禁止ルールを上書きしうる）", level)
 		}
 	}
-	// 只读は、利用者側の MCP（termio など）を使わせない（--strict-mcp-config）。非対話・対話モードの両方
+	// 読み取りのみは、利用者側の MCP（termio など）を使わせない（--strict-mcp-config）。非対話・対話モードの両方
 	_, inter := ad.InteractiveCommand("s1", "", permReadOnly)
 	for name, args := range map[string][]string{"非対話": ad.runArgs("s1", "", permReadOnly), "対話モード": inter} {
 		if !slices.Contains(args, "--strict-mcp-config") {
-			t.Errorf("%s・只读で --strict-mcp-config がない: %q", name, args)
+			t.Errorf("%s・読み取りのみで --strict-mcp-config がない: %q", name, args)
 		}
 	}
 	if slices.Contains(ad.runArgs("s1", "", permWorkspace), "--strict-mcp-config") {
-		t.Error("書き込み可で MCP を絞った（只读だけのはず）")
+		t.Error("書き込み可で MCP を絞った（読み取りのみだけのはず）")
 	}
 }
 
-// 案8: 作者が選んだ段階は、ターンの ctx に載り、保存して再起動後に戻る。選べない段階・CLI は断る
+// 案8: 人間が選んだ段階は、ターンの ctx に載り、保存して再起動後に戻る。選べない段階・CLI は断る
 func TestSetAgentPermission(t *testing.T) {
 	r, a := newTestRoom(t)
 	r.SetConfigDir(t.TempDir())
@@ -98,7 +98,7 @@ func TestSetAgentPermission(t *testing.T) {
 	st := r.statusLocked().Agents[0]
 	last := r.messages[len(r.messages)-1]
 	r.mu.Unlock()
-	if st.Permission != permWorkspace || !st.PermissionOK || !strings.Contains(last.Text, "可写工作目录") {
+	if st.Permission != permWorkspace || !st.PermissionOK || !strings.Contains(last.Text, "作業フォルダに書き込み可") {
 		t.Fatalf("状態 %#v / 通知 %q", st, last.Text)
 	}
 	if got := permissionFrom(withPermission(context.Background(), a.permission)); got != permWorkspace {

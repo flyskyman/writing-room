@@ -4,9 +4,9 @@ package main
 //
 // CLI エージェントは話しかけられない限り発言できないため、エージェントごとに待機ループを動かし、
 // 他の参加者の新しい発言があれば「話したいことがあれば発言、なければ [pass]」と尋ねる。
-//   - 会話が delay だけ途切れてから考え始める（作者が割り込む余地を残す）
+//   - 会話が delay だけ途切れてから考え始める（人間が割り込む余地を残す）
 //   - パスは表示しない。全員がパスすると会話は自然に止まり、次の発言を待つ
-//   - 作者の発言1回あたりのエージェントの発言数は maxHops まで（暴走防止。0 は無制限）
+//   - 人間の発言1回あたりのエージェントの発言数は maxHops まで（暴走防止。0 は無制限）
 
 import (
 	"context"
@@ -27,7 +27,7 @@ type FreeTalk struct {
 
 const freeTalkMaxFailures = 3 // 連続で失敗したエージェントはフリートークから外す
 
-// StartFreeTalk はフリートークを開始する。topic が空でなければ作者の発言として投稿する。
+// StartFreeTalk はフリートークを開始する。topic が空でなければ人間の発言として投稿する。
 func (r *Room) StartFreeTalk(topic string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -47,12 +47,12 @@ func (r *Room) StartFreeTalk(topic string) error {
 		r.postLocked("human", topic, "chat")
 		r.checkRotateLocked()
 	}
-	limit := fmt.Sprintf("作者每条发言最多 %d 次", r.maxHops)
+	limit := fmt.Sprintf("人間の発言1回あたり%d回まで", r.maxHops)
 	if r.maxHops == 0 {
-		limit = "不限"
+		limit = "上限なし"
 	}
-	r.postLocked("system", fmt.Sprintf("自由谈开始: 所有人看到新发言后，想说就自由发言。"+
-		"代理发言%s（可在上限设置中更改）。按「停止」结束。", limit), "system")
+	r.postLocked("system", fmt.Sprintf("フリートーク開始: 全員が新しい発言を見て、話したいときに自由に発言します。"+
+		"エージェントの発言は%s（上限の設定で変更可）。「停止」で終了します。", limit), "system")
 	r.log.Info("free_talk.start", "agents", len(ids))
 	for _, id := range ids {
 		a := r.agent(id)
@@ -83,7 +83,7 @@ func (r *Room) endFreeTalkLocked(reason string) {
 }
 
 // hasNewChatLocked は a がまだ受け取っていない、a 宛ての他の参加者の発言があるかを返す。
-// 系统メッセージだけでは発言のきっかけにしない。コマンドの実行結果は、呼び出す相手（進行役）だけのきっかけにする
+// システムメッセージだけでは発言のきっかけにしない。コマンドの実行結果は、呼び出す相手（進行役）だけのきっかけにする
 func (r *Room) hasNewChatLocked(a *Agent) bool {
 	for _, m := range r.messages[a.cursor:] {
 		if m.From != a.ID && m.Kind == "chat" && r.freeTalkAddressedLocked(m, a.ID) {
@@ -97,7 +97,7 @@ func (r *Room) hasNewChatLocked(a *Agent) bool {
 }
 
 // freeTalkAddressedLocked は、フリートークの発言 m で id のエージェントを起動するかを返す。
-// 作者・進行役・メンバーの区別なく、宛先（@ID・@human）がなければ全員（@all と同じ）、あれば宛先の人だけを起動する。
+// 人間・進行役・メンバーの区別なく、宛先（@ID・@human）がなければ全員（@all と同じ）、あれば宛先の人だけを起動する。
 // 宛先にしなかったエージェントも、次に起動したときに新着としてこの発言を受け取る
 func (r *Room) freeTalkAddressedLocked(m Message, id string) bool {
 	ids, all := r.mentions(m.Text, m.From)
@@ -107,7 +107,7 @@ func (r *Room) freeTalkAddressedLocked(m Message, id string) bool {
 	return len(ids) == 0 && !mentionsHuman(m.Text)
 }
 
-// mentionsHuman は text が @human で作者に呼びかけているかを返す
+// mentionsHuman は text が @human で人間に呼びかけているかを返す
 func mentionsHuman(text string) bool {
 	for _, m := range mentionRe.FindAllStringSubmatch(text, -1) {
 		if strings.EqualFold(m[1], "human") {
@@ -138,7 +138,7 @@ func (r *Room) freeLoop(ft *FreeTalk, a *Agent) {
 		if hopLimitReached(r.hops, r.maxHops) {
 			if !ft.limitNotified {
 				ft.limitNotified = true
-				r.postLocked("system", fmt.Sprintf("代理发言已达上限（%d 次）。作者发言后恢复。", r.maxHops), "system")
+				r.postLocked("system", fmt.Sprintf("エージェントの発言が上限（%d回）に達しました。人間が発言すると再開します。", r.maxHops), "system")
 				r.pushStatusLocked()
 			}
 			r.cond.Wait()
@@ -171,7 +171,7 @@ func (r *Room) freeLoop(ft *FreeTalk, a *Agent) {
 		failures++
 		if failures >= freeTalkMaxFailures && r.free == ft {
 			a.state = "idle"
-			r.postLocked("system", fmt.Sprintf("%s 连续失败 %d 次，已退出自由谈。", a.Name, failures), "system")
+			r.postLocked("system", fmt.Sprintf("%s が%d回続けて失敗したので、フリートークから外しました。", a.Name, failures), "system")
 			r.log.Error("free_talk.agent_removed", "agent", a.ID, "failures", failures)
 			r.pushStatusLocked()
 			return

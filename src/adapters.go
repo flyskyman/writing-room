@@ -48,10 +48,10 @@ type TurnResult struct {
 // Usage は1ジョブ（CLI の1回の起動）のトークン使用量
 type Usage struct {
 	Known       bool // CLI の出力から取得できたか
-	Input       int  // 入力トークン（缓存分を含む）
-	CachedInput int  // 入力のうち缓存から読んだ分
+	Input       int  // 入力トークン（キャッシュ分を含む）
+	CachedInput int  // 入力のうちキャッシュから読んだ分
 	Output      int  // 出力トークン
-	Context     int  // 最後の API 呼び出しの入力トークン（その時点の文脈の大きさ。缓存分を含む。取得できなければ 0）
+	Context     int  // 最後の API 呼び出しの入力トークン（その時点の文脈の大きさ。キャッシュ分を含む。取得できなければ 0）
 }
 
 // ModelOption は画面で選べるモデルの候補
@@ -62,13 +62,13 @@ type ModelOption struct {
 
 type Adapter interface {
 	Available() bool
-	// Models は選べるモデルの候補を返す（空なら默认模型のみ）
+	// Models は選べるモデルの候補を返す（空なら既定のモデルのみ）
 	Models() []ModelOption
-	// ModelSource は候補の取得元（固定定義 / 缓存 / CLI照会）。アカウントで利用できると確認済みとは限らない
+	// ModelSource は候補の取得元（固定定義 / キャッシュ / CLI照会）。アカウントで利用できると確認済みとは限らない
 	ModelSource() string
 	// SelfTool は自己管理ツール（AI Agent Room の MCP サーバ）を起動時に接続できるか
 	SelfTool() bool
-	// Run は1ターン実行する。model が空なら CLI 默认のモデルを使う
+	// Run は1ターン実行する。model が空なら CLI の既定のモデルを使う
 	Run(ctx context.Context, prompt, sessionID, model, cwd string) (TurnResult, error)
 }
 
@@ -123,7 +123,7 @@ func runProcess(ctx context.Context, name string, args []string, stdin, cwd stri
 	cmd.Dir = cwd
 	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE") // Claude Code 内から起動された場合の入れ子判定を避ける
 	hideWindow(cmd)
-	newProcessGroup(cmd) // 中止・超时のとき、孫プロセスまでまとめて終了させるため（Windows 以外）
+	newProcessGroup(cmd) // 中止・時間切れのとき、孫プロセスまでまとめて終了させるため（Windows 以外）
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	if pw := progressWriterFrom(ctx); pw != nil { // 途中経過の通知と、出力の別窓表示への転送
@@ -136,7 +136,7 @@ func runProcess(ctx context.Context, name string, args []string, stdin, cwd stri
 		cmd.Stdin = strings.NewReader(stdin)
 	}
 	if err := cmd.Start(); err != nil {
-		return procResult{}, &AgentError{ErrAgentUnavailable, fmt.Sprintf("无法启动 %s: %v", name, err)}
+		return procResult{}, &AgentError{ErrAgentUnavailable, fmt.Sprintf("%s を起動できません: %v", name, err)}
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -157,9 +157,9 @@ func runProcess(ctx context.Context, name string, args []string, stdin, cwd stri
 		// 終了までに受信した出力も返す（使用量の集計に使う。本文は採用しない）
 		partial := procResult{out.String(), errb.String(), -1}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return partial, &AgentError{ErrAgentTimeout, fmt.Sprintf("%v 内没有响应", timeout)}
+			return partial, &AgentError{ErrAgentTimeout, fmt.Sprintf("%v 以内に応答がありませんでした", timeout)}
 		}
-		return partial, &AgentError{ErrAgentCanceled, "已中断"}
+		return partial, &AgentError{ErrAgentCanceled, "中断されました"}
 	}
 }
 
@@ -191,7 +191,7 @@ func procFailure(name string, r procResult) error {
 	if len(lines) > 8 {
 		lines = lines[len(lines)-8:]
 	}
-	msg := fmt.Sprintf("%s 失败 (exit %d)\n%s", name, r.exitCode, strings.Join(lines, "\n"))
+	msg := fmt.Sprintf("%s が失敗しました (exit %d)\n%s", name, r.exitCode, strings.Join(lines, "\n"))
 	if isQuotaError(r.stderr) { // stdout の写しでは判定しない
 		return &AgentError{ErrAgentQuota, msg}
 	}
@@ -236,7 +236,7 @@ func (a *claudeAdapter) runArgs(sessionID, model, permission string) []string {
 		args = append(args, "--mcp-config="+string(cfg), "--allowedTools="+claudeAllowedTools())
 	}
 	if s := claudeDenySettings(); s != "" {
-		// 認証トークン・作者が編集する設定を読み書きさせない（settings.json に手で deny を足さなくてよいように）
+		// 認証トークン・人間が編集する設定を読み書きさせない（settings.json に手で deny を足さなくてよいように）
 		args = append(args, "--settings="+s)
 	}
 	if model != "" {
@@ -328,7 +328,7 @@ func (j claudeOutput) modelAndUsage() (string, Usage) {
 		if u.OutputTokens > most {
 			model, most = name, u.OutputTokens
 		}
-		// inputTokens は缓存分を含まないので足し合わせる
+		// inputTokens はキャッシュ分を含まないので足し合わせる
 		usage.Input += u.InputTokens + u.CacheReadInputTokens + u.CacheCreationInputTokens
 		usage.CachedInput += u.CacheReadInputTokens
 		usage.Output += u.OutputTokens
@@ -391,7 +391,7 @@ func (a *codexAdapter) Models() []ModelOption {
 	return list
 }
 
-func (a *codexAdapter) ModelSource() string { return "缓存" }
+func (a *codexAdapter) ModelSource() string { return "キャッシュ" }
 func (a *codexAdapter) SelfTool() bool      { return true }
 
 func (a *codexAdapter) Run(ctx context.Context, prompt, sessionID, model, cwd string) (TurnResult, error) {
@@ -423,7 +423,7 @@ func (a *codexAdapter) Run(ctx context.Context, prompt, sessionID, model, cwd st
 	}
 	threadID, texts, lastErr := firstNonEmpty(ev.threadID, sessionID), ev.texts, ev.lastErr
 	if ev.scanErr != nil { // 読み取り途中の失敗を正常完了として扱わない
-		return TurnResult{Usage: usage}, &AgentError{ErrAgentBadOutput, "codex: 无法读取输出: " + ev.scanErr.Error()}
+		return TurnResult{Usage: usage}, &AgentError{ErrAgentBadOutput, "codex: 出力を読み取れません: " + ev.scanErr.Error()}
 	}
 	if len(texts) == 0 {
 		if lastErr != "" {
@@ -463,7 +463,7 @@ func parseCodexEvents(stdout string) codexEvents {
 			Error struct {
 				Message string `json:"message"`
 			} `json:"error"`
-			// turn.completed の使用量（input_tokens は缓存分を含む）
+			// turn.completed の使用量（input_tokens はキャッシュ分を含む）
 			Usage *struct {
 				InputTokens       int `json:"input_tokens"`
 				CachedInputTokens int `json:"cached_input_tokens"`
@@ -569,7 +569,7 @@ func (a *agyAdapter) Models() []ModelOption {
 
 func (a *agyAdapter) ModelSource() string { return "CLI照会" }
 
-// agy は起動時に MCP サーバを指定できない（設定への恒久登録が必要で、作者の了承待ち）
+// agy は起動時に MCP サーバを指定できない（設定への恒久登録が必要で、人間の了承待ち）
 func (a *agyAdapter) SelfTool() bool { return false }
 
 // loadModels は `agy models` の「<ID>\t<表示名>」形式の行を読む
@@ -637,7 +637,7 @@ type agyResult struct {
 	turnUsage      Usage  // このターンの使用量（step_update から集計する）
 }
 
-// agyUsage は agy の API 呼び出し1回分の使用量。input_tokens は缓存分（cache_read_tokens）を含まない
+// agyUsage は agy の API 呼び出し1回分の使用量。input_tokens はキャッシュ分（cache_read_tokens）を含まない
 type agyUsage struct {
 	InputTokens     int `json:"input_tokens"`
 	OutputTokens    int `json:"output_tokens"`

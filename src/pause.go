@@ -1,7 +1,7 @@
 package main
 
 // エージェントの一時停止。一時停止中のエージェントは宛先・フリートーク・ディスカッション・進行役・要約の対象から外す。
-// 利用枠の上限エラー（usage limit など）で失敗したら自动一時停止にし、戻すのは作者が画面のモデル選択で行う。
+// 利用枠の上限エラー（usage limit など）で失敗したら自動で一時停止にし、戻すのは人間が画面のモデル選択で行う。
 // 一時停止の状態は logs/session.json に保持し、再起動後も続く。
 
 import (
@@ -20,7 +20,7 @@ func isQuotaError(msg string) bool { return quotaErrorRe.MatchString(msg) }
 // 対話モードの窓を開いている間（案9。interactive.go）も参加させない
 func (a *Agent) active() bool { return a.state != "unavailable" && !a.paused && !a.interactive }
 
-// SetPaused は作者の操作でエージェントを一時停止・再開する
+// SetPaused は人間の操作でエージェントを一時停止・再開する
 func (r *Room) SetPaused(id string, paused bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -39,7 +39,7 @@ func (r *Room) SetPaused(id string, paused bool) error {
 	r.saveSessionLocked()
 	r.log.Info("agent.resume", "agent", a.ID)
 	go r.refreshQuota(a, true) // 一時停止中は取得しないので、再開したら取り直す
-	r.postLocked("system", fmt.Sprintf("已解除 %s 的暂停。", a.Name), "system")
+	r.postLocked("system", fmt.Sprintf("%s の一時停止を解除しました。", a.Name), "system")
 	// フリートーク中なら、再開したエージェントも聞き始める
 	if r.free != nil && a.state == "idle" {
 		a.state = "listening"
@@ -54,14 +54,14 @@ func (r *Room) pauseLocked(a *Agent, by string) {
 	a.paused = true
 	note := ""
 	if r.leader == a.ID { // 一時停止中のエージェントは進行役にできない
-		r.leader, note = "", "同时取消了主持指定。"
+		r.leader, note = "", "進行役の指定も外しました。"
 	}
 	r.saveSessionLocked()
 	r.log.Info("agent.pause", "agent", a.ID, "by", by)
 	if by == "quota" {
-		r.postLocked("system", fmt.Sprintf("%s 已达额度上限，已暂停。可用后请在模型选择里恢复。%s", a.Name, note), "system")
+		r.postLocked("system", fmt.Sprintf("%s が利用枠の上限に達したので一時停止にしました。使えるようになったら、モデル選択で戻してください。%s", a.Name, note), "system")
 	} else {
-		r.postLocked("system", fmt.Sprintf("已暂停 %s。%s", a.Name, note), "system")
+		r.postLocked("system", fmt.Sprintf("%s を一時停止にしました。%s", a.Name, note), "system")
 	}
 	r.pushStatusLocked()
 }

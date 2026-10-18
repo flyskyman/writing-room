@@ -8,12 +8,13 @@
 - 每轮提示词冻结「当前稿件版本 + 作者裁定」；代理回复里的 ```candidate 块自动登记为候选（基准版本、所见裁定）。
 - 「作为裁定」：进行中的轮次取消，之前的候选标「未见裁定」且不能直接接受；接受时重新校验基准版本（409）。
 - 每次调用留下上下文清单与脱敏输入：`run/logs/context.jsonl`、`run/logs/prompts/`；页面「📋 上下文」可查。
-- 界面与服务端文案为中文（`tools/ja-zh.json` + `tools/ja2zh.py` 是日文→中文映射，吃上游更新后可重跑）。
+- 界面与服务端文案为中文。`src/` 里的上游 Go 源码保持日文原样，中文在构建时生成：`tools/ja-zh.json`（日文→中文映射，唯一来源）由 `tools/ja2zh.py` 应用到 `run/build/src/` 副本，`--check` 列出副本里仍含假名的字符串字面量。
 
 ## 运行
 
 ```sh
-tools/rebuild.sh      # 构建 + 重启（Go 1.22+；没装 go 时用 GO_DIR 指向工具链）
+tools/rebuild.sh      # 复制 src/ → 翻译副本 → vet/test（原样与副本两份）→ 构建 → 重启（Go 1.22+；没装 go 时用 GO_DIR 指向工具链）
+tools/rebuild.sh --no-restart       # 只构建不重启（CI 用）
 tools/start.sh        # 只启动；数据在 run/（gitignore）
 pkill -f 'ai-agent-room -workdir'   # 停止
 tools/sim-start.sh    # 测试替身实例（8790），故障注入用，不调真实模型

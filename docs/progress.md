@@ -64,3 +64,10 @@ Web UI 内与 Claude、Codex、Gemini(agy) 围绕同一份材料交流：提问 
 - 服务端：Go 源码 241 条日文字面量 + 20 条汉字词（系统消息、提示词框架、API 错误、CLI 启动帮助、默认规则、额度文案）批量换成中文（映射 `wb-ja-zh.json`，脚本 `wb-ja2zh.py`）；测试断言同步改为中文，`go test` 通过。中文界面时「环境与规则」按中文框架投递（规则文件仍用 rules.en.md）。
 - 页面：i18n 已覆盖；补「请主持总结」文案、根元素 title 翻译。历史消息里旧的日文系统消息（重启前产生）保留原样。
 - commit fc24eb5 → dd53c46 → 本轮收尾 commit；重建重启后新系统消息为中文（#34）。
+
+### 迭代 5：中文化改为构建时生成（issue #1，分支 build-layer）
+- 回退 fc24eb5、dd53c46 对上游文件的翻译：`git diff upstream/main --stat -- src/` 只剩 chat.go / main.go / settings.go / envprofile.go 的功能段、manuscript*.go、web/ 三个文件。envprofile.go 冲突按「保留 bd9e6f0 的 zh 框架判断、注释回到上游」解决。
+- 旧硬提交里约 30 处是手译、映射里没有（纯汉字词如 既定/不明/枠、defaultRules 9 行、测试断言）。以 main 上的已译源码为准补进 `tools/ja-zh.json`（242 → 309 条）；另新译 4 条旧版也没译的假名字面量（不支持流式传输、工作目录:、日志:、不允许的主机）。核对：副本翻译结果与 main 已译源码逐文件 diff，字符串字面量全部一致（剩余差异只有测试注释和这 4 条）。
+- `tools/ja2zh.py`：`--src <目录>` 对副本工作，跳过 manuscript*.go；`--check` 列出非测试 .go 里含假名的字符串字面量（当前 0）。不用 argparse（同目录 inspect.py 会遮蔽标准库）。
+- `tools/rebuild.sh`：复制到 run/build/src → 翻译（源码 + 测试）→ check → vet/test（原样与副本两份）→ 用副本构建；`--no-restart` 供 CI。CI 改为调用它。
+- 页面（headless Chrome + CDP，本机 Chrome 扩展未连接）：8787 换新二进制重启（run/ 数据未动），lang=zh；主页与设置 4 个标签页的可见文本假名 0；重启后新投递的「环境与规则」(#5) 为中文。重设：claude/codex 权限保持只读（重启后仍在），agy 模型重设为 gemini-3.8-flash-high (#6)。截图 `run/logs/screens/I5-zh-ui-build-layer.png`、`I5-zh-settings-build-layer.png`。

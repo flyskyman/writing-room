@@ -106,7 +106,7 @@ func TestRetryAgent(t *testing.T) {
 	}
 	a.state = "idle"
 	r.mu.Lock()
-	r.hops = r.maxHops // 上限に達していても、作者の操作なら起動する
+	r.hops = r.maxHops // 上限に達していても、人間の操作なら起動する
 	r.mu.Unlock()
 	if err := r.RetryAgent("x"); err != nil {
 		t.Fatal(err)

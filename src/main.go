@@ -1,10 +1,10 @@
 package main
 
-// AI Agent Room: Claude Code / Codex CLI / Antigravity CLI と作者が同じチャットで会話するローカルWebアプリ。
+// AI Agent Room: Claude Code / Codex CLI / Antigravity CLI と人間が同じチャットで会話するローカルWebアプリ。
 //
 // API（レスポンスは成功時 {"data": ...}、失敗時 {"error_code", "message", "request_id"}）
 //   GET  /api/events    SSE で履歴スナップショットと以降のイベントを配信
-//   POST /api/messages     {"text": "..."} 作者の発言
+//   POST /api/messages     {"text": "..."} 人間の発言
 //   POST /api/discussions  {"topic": "...", "rounds": 3} ディスカッション開始
 //   POST /api/freetalk     {"topic": "..."} フリートーク開始（topic は省略可）
 //   POST /api/stop         実行中のターン・待機・ディスカッションを中止
@@ -16,7 +16,7 @@ package main
 //   GET  /api/logs/{name}  チャットログの内容
 //   GET  /api/logs/{name}/export  チャットログを Markdown で書き出す
 //   POST /api/logs/{name}/branch  {"upto": 12} ログの発言 12 までを引き継いで新しい会話を始める
-//   POST /api/diag         各 CLI を --version で起動して、見つからない・起動失敗・超时・バージョンを返す（診断）
+//   POST /api/diag         各 CLI を --version で起動して、見つからない・起動失敗・時間切れ・バージョンを返す（診断）
 //   GET  /api/search       ?q=語&from=発言者&limit=件数 過去ログを横断して発言を探す
 
 import (
@@ -45,11 +45,11 @@ import (
 var webFS embed.FS
 
 func main() {
-	port := flag.Int("port", 8787, "监听端口（仅 127.0.0.1）")
-	workdir := flag.String("workdir", "", "代理的工作目录（默认: 上次的工作目录，没有则当前目录）")
-	maxHops := flag.Int("max-hops", 100, "作者每条发言代理最多的轮数（0 为不限）")
-	delaySec := flag.Int("delay", 3, "一位代理发言后到启动下一位之间的等待秒数")
-	noOpen := flag.Bool("no-open", false, "启动时不打开浏览器")
+	port := flag.Int("port", 8787, "待ち受けポート（127.0.0.1 のみ）")
+	workdir := flag.String("workdir", "", "エージェントの作業ディレクトリ（既定: 前回の作業ディレクトリ、なければカレントディレクトリ）")
+	maxHops := flag.Int("max-hops", 100, "人間の発言1回あたりのエージェントの最大ターン数（0 で無制限）")
+	delaySec := flag.Int("delay", 3, "エージェントの発言後、次のエージェントを起動するまでの待ち秒数")
+	noOpen := flag.Bool("no-open", false, "起動時にブラウザを開かない")
 	flag.Parse()
 
 	exe, _ := os.Executable()
@@ -58,19 +58,19 @@ func main() {
 		logDir = os.Getenv("AI_AGENT_ROOM_LOG_DIR")
 	}
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
-		fmt.Fprintln(os.Stderr, "无法创建日志目录:", err)
+		fmt.Fprintln(os.Stderr, "ログディレクトリを作成できません:", err)
 		os.Exit(1)
 	}
 	lf, err := os.OpenFile(filepath.Join(logDir, "server.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "无法打开日志文件:", err)
+		fmt.Fprintln(os.Stderr, "ログファイルを開けません:", err)
 		os.Exit(1)
 	}
 	log := slog.New(slog.NewJSONHandler(lf, nil))
 	// 改名前（AI Chat）の保存先にある認証トークンと設定を引き継ぐ。保存先を使う処理より前に行う
 	if from, to, err := migrateLegacySecretDir(); err != nil {
 		log.Warn("config.migrate", "error", err.Error())
-		fmt.Fprintln(os.Stderr, "无法迁移旧配置文件夹（以新设置启动）:", err)
+		fmt.Fprintln(os.Stderr, "以前の設定フォルダを移せませんでした（新しい設定で起動します）:", err)
 	} else if from != "" {
 		log.Info("config.migrate", "from", from, "to", to)
 	}
@@ -98,7 +98,7 @@ func main() {
 		room.SetConfigDir(filepath.Join(sd, configDirName))
 	}
 	room.LoadSettings(cliSet)
-	// 作者が編集する設定（rules.md など）は作業ディレクトリの外に置き、エージェントには起動時に禁止ルールで読み書きさせない
+	// 人間が編集する設定（rules.md など）は作業ディレクトリの外に置き、エージェントには起動時に禁止ルールで読み書きさせない
 	room.SetEnvProfile(detectEnvironment(), defaultConfigDir(), exeDir()) // 環境とルールを会話に載せる（修正案 7.3）
 
 	mux := http.NewServeMux()
@@ -146,17 +146,17 @@ func main() {
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "无法监听:", err)
+		fmt.Fprintln(os.Stderr, "待ち受けできません:", err)
 		os.Exit(1)
 	}
 	secretDir, err := defaultSecretDir()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "无法确定认证 token 的保存位置:", err)
+		fmt.Fprintln(os.Stderr, "認証トークンの保存先を決められません:", err)
 		os.Exit(1)
 	}
 	token, err := loadOrCreateAuthToken(logDir, secretDir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "无法准备认证 token:", err)
+		fmt.Fprintln(os.Stderr, "認証トークンを用意できません:", err)
 		os.Exit(1)
 	}
 	url := "http://" + addr
@@ -168,7 +168,7 @@ func main() {
 	for _, a := range agents {
 		mark := "✓"
 		if !a.Adapter.Available() {
-			mark = "✗ (未找到)"
+			mark = "✗ (見つかりません)"
 		}
 		fmt.Printf("  %s %s (@%s)\n", mark, a.Name, a.ID)
 	}
@@ -221,7 +221,7 @@ func (room *Room) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 		Decision bool   `json:"decision"` // 记为作者裁定（manuscript.go）
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	m, err := room.PostHumanDecision(body.Text, body.ReplyTo, body.Decision)
@@ -242,7 +242,7 @@ func (room *Room) handleStartDiscussion(w http.ResponseWriter, r *http.Request) 
 		Rounds int    `json:"rounds"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	m, err := room.StartDiscussion(body.Topic, body.Rounds)
@@ -263,7 +263,7 @@ func (room *Room) handleStartFreeTalk(w http.ResponseWriter, r *http.Request) {
 		Topic string `json:"topic"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	err := room.StartFreeTalk(strings.TrimSpace(body.Topic))
@@ -298,7 +298,7 @@ func (room *Room) handleAddAgent(w http.ResponseWriter, r *http.Request) {
 		Type string `json:"type"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	a, err := room.AddAgent(body.Type)
@@ -335,11 +335,11 @@ func (room *Room) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 		Paused *bool   `json:"paused"` // 一時停止（true）・再開（false）
 		// TimeoutSec はこのエージェントだけの1ターンの上限時間（秒）。0 で会話全体の設定に戻す（案 8.3）
 		TimeoutSec *int `json:"timeout_sec"`
-		// Permission は権限の段階（""＝既定、read_only、workspace_write）。作者の画面からだけ変える（案8）
+		// Permission は権限の段階（""＝既定、read_only、workspace_write）。人間の画面からだけ変える（案8）
 		Permission *string `json:"permission"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	var err error
@@ -393,7 +393,7 @@ func (room *Room) handleEndInteractive(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusNotFound, "AGENT_NOT_FOUND", err.Error())
 	case errors.Is(err, ErrNotInteractive):
 		writeError(w, r, http.StatusConflict, "NOT_INTERACTIVE", err.Error())
-	default: // 窓が閉じたことを自动検知できる環境
+	default: // 窓が閉じたことを自動で検知できる環境
 		writeError(w, r, http.StatusConflict, "INTERACTIVE_AUTO", err.Error())
 	}
 }
@@ -459,7 +459,7 @@ func (room *Room) handleBranchLog(w http.ResponseWriter, r *http.Request) {
 		Upto int `json:"upto"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	err := room.BranchFromLog(r.PathValue("name"), body.Upto)
@@ -497,7 +497,7 @@ func (room *Room) handleSettings(w http.ResponseWriter, r *http.Request) {
 		Leader       *string `json:"leader"`
 		Workdir      *string `json:"workdir"`
 		RotateTokens *int    `json:"rotate_tokens"`
-		// CommandLeaderOnly が true なら、進行役（と作者）の発言のコードブロックだけを実行できる（修正案 7.1）
+		// CommandLeaderOnly が true なら、進行役（と人間）の発言のコードブロックだけを実行できる（修正案 7.1）
 		CommandLeaderOnly *bool `json:"command_leader_only"`
 		// TurnTimeoutSec は1ターンの上限時間（秒。案 8.3）
 		TurnTimeoutSec *int `json:"turn_timeout_sec"`
@@ -505,7 +505,7 @@ func (room *Room) handleSettings(w http.ResponseWriter, r *http.Request) {
 		Lang *string `json:"lang"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	// 検証に失敗しうる作業ディレクトリと進行役を先に確かめ、失敗時はほかの設定を変えない
@@ -560,12 +560,12 @@ func (room *Room) handleSettings(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, nil)
 }
 
-// handleOpenConfig は作者が編集する設定のフォルダ（rules.md・capabilities.json）をエクスプローラーで開く。
-// 設定は作業ディレクトリの外に有、エージェントからは読み書きできない
+// handleOpenConfig は人間が編集する設定のフォルダ（rules.md・capabilities.json）をエクスプローラーで開く。
+// 設定は作業ディレクトリの外にあり、エージェントからは読み書きできない
 func (room *Room) handleOpenConfig(w http.ResponseWriter, r *http.Request) {
 	dir := room.ConfigDir()
 	if dir == "" {
-		writeError(w, r, http.StatusInternalServerError, "CONFIG_DIR_UNAVAILABLE", "无法确定配置文件夹位置")
+		writeError(w, r, http.StatusInternalServerError, "CONFIG_DIR_UNAVAILABLE", "設定フォルダの場所を決められません")
 		return
 	}
 	if err := openConfigDir(dir); err != nil {
@@ -591,7 +591,7 @@ func (room *Room) handleRunBlock(w http.ResponseWriter, r *http.Request) {
 	}
 	var body CommandRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
-		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "无法解析 JSON")
+		writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "JSONを解析できません")
 		return
 	}
 	run, err := room.RunBlock(id, n, body)
@@ -691,11 +691,11 @@ func localOnly(port int, next http.Handler) http.Handler {
 			return
 		}
 		if o := r.Header.Get("Origin"); o != "" && !allowed[strings.TrimPrefix(o, "http://")] {
-			writeError(w, r, http.StatusForbidden, "FORBIDDEN_ORIGIN", "不允许的来源")
+			writeError(w, r, http.StatusForbidden, "FORBIDDEN_ORIGIN", "許可されていないオリジンです")
 			return
 		}
 		if r.Method != http.MethodGet && !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-			writeError(w, r, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type 必须是 application/json")
+			writeError(w, r, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type は application/json にしてください")
 			return
 		}
 		next.ServeHTTP(w, r)

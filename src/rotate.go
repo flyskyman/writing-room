@@ -1,7 +1,7 @@
 package main
 
 // トークン消費対策: CLI セッションの切り替え。
-// 作者が送信したとき、直近1回の実行の入力トークンがしきい値を超えたエージェントの CLI セッションを切り替える。
+// 人間が送信したとき、直近1回の実行の入力トークンがしきい値を超えたエージェントの CLI セッションを切り替える。
 // 会話の議事録を1つ作って logs/minutes/ に保存し、切り替えたエージェント全員で使い回す。
 // 切り替えたエージェントには、新しいセッションの最初のターンで議事録の絶対パスと直近の発言数件を渡す。
 // チャットの履歴は消さない。議事録の作成に失敗したら、セッションを切り替えずに会話を続けて通知する。
@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultRotateTokens = 500000    // しきい値の既定（直近1回の実行の入力トークン。缓存分を含む）
+	defaultRotateTokens = 500000    // しきい値の既定（直近1回の実行の入力トークン。キャッシュ分を含む）
 	maxRotateTokens     = 100000000 // しきい値の上限
 	rotateRecentMsgs    = 10        // 切り替え後の最初のターンに渡す直近の発言数
 	rotateUnknownMsgs   = 150       // 使用量を取得できないエージェントは、セッションに渡した発言がこの件数を超えたら切り替える
@@ -39,7 +39,7 @@ func (r *Room) SetRotateTokens(n int) {
 	r.pushStatusLocked()
 }
 
-// checkRotateLocked は作者の送信時に呼ばれ、しきい値を超えたエージェントのセッション切り替えを予約する。
+// checkRotateLocked は人間の送信時に呼ばれ、しきい値を超えたエージェントのセッション切り替えを予約する。
 // 議事録の作成は裏で行い、予約したエージェントは次のターンの開始時に完成を待つ。
 func (r *Room) checkRotateLocked() {
 	if r.rotateTokens <= 0 || r.minutes != nil {
@@ -66,16 +66,16 @@ func (r *Room) checkRotateLocked() {
 	ids := make([]string, len(targets))
 	for i, a := range targets {
 		a.rotatePending = true
-		names[i] = fmt.Sprintf("%s（最近 %d token）", a.Name, a.lastInput)
+		names[i] = fmt.Sprintf("%s（直近 %d トークン）", a.Name, a.lastInput)
 		if a.lastInput == 0 {
-			names[i] = fmt.Sprintf("%s（用量未知，本会话发言 %d 条）", a.Name, r.nextID-a.sessionStart)
+			names[i] = fmt.Sprintf("%s（使用量不明、セッション内の発言 %d件）", a.Name, r.nextID-a.sessionStart)
 		}
 		ids[i] = a.ID
 	}
 	job := &minutesJob{done: make(chan struct{}), upto: len(r.messages)}
 	r.minutes = job
 	r.log.Info("session.rotate.start", "agents", strings.Join(ids, ","), "summarizer", s.ID, "threshold", r.rotateTokens, "mode", mode)
-	r.postLocked("system", fmt.Sprintf("最近输入超过阈值（%d token），将切换 %s 的 CLI 会话。%s 正在生成纪要。",
+	r.postLocked("system", fmt.Sprintf("直近の入力がしきい値（%d トークン）を超えたため、%s の CLI セッションを切り替えます。%s が議事録を作成しています。",
 		r.rotateTokens, strings.Join(names, "、"), s.Name), "system")
 	ctx := withPermission(context.Background(), s.permission)
 	ctx = withTurnTimeout(ctx, r.turnTimeoutForLocked(s))
@@ -97,13 +97,13 @@ func (r *Room) writeMinutes(ctx context.Context, job *minutesJob, s *Agent, prom
 	res, err := s.Adapter.Run(ctx, prompt, "", modelSel, workdir) // 議事録は新しいセッションで作る
 	text := strings.TrimSpace(cleanReply(s, res.Text))
 	if err == nil && text == "" {
-		err = errors.New("纪要为空")
+		err = errors.New("議事録が空でした")
 	}
 	var path string
 	if err == nil {
 		dir := filepath.Join(r.logDir, "minutes")
 		path = filepath.Join(dir, "minutes-"+time.Now().Format("20060102-150405")+".md")
-		body := fmt.Sprintf("# 会议纪要\n\n- 对话日志: %s\n- 生成: %s（%s）\n\n%s\n", logName, s.Name, time.Now().Format("2006-01-02 15:04:05"), text)
+		body := fmt.Sprintf("# 議事録\n\n- 会話ログ: %s\n- 作成: %s（%s）\n\n%s\n", logName, s.Name, time.Now().Format("2006-01-02 15:04:05"), text)
 		if err = os.MkdirAll(dir, 0o755); err == nil {
 			err = os.WriteFile(path, []byte(body), 0o644)
 		}
@@ -128,13 +128,13 @@ func (r *Room) writeMinutes(ctx context.Context, job *minutesJob, s *Agent, prom
 		for _, a := range r.agents {
 			a.rotatePending = false
 		}
-		r.postLocked("system", fmt.Sprintf("生成纪要失败（%s）。不切换会话，继续对话。", err.Error()), "system")
+		r.postLocked("system", fmt.Sprintf("議事録の作成に失敗しました（%s）。セッションを切り替えずに会話を続けます。", err.Error()), "system")
 		r.pushStatusLocked()
 		return
 	}
 	r.lastMinutes = job
 	log.Info("session.rotate.minutes", "path", path, "chars", len([]rune(text)))
-	r.postLocked("system", fmt.Sprintf("已生成纪要: %s", path), "system")
+	r.postLocked("system", fmt.Sprintf("議事録を作成しました: %s", path), "system")
 }
 
 // waitRotateLocked は runTurn の開始時に呼ばれ、セッションの切り替えが予約されていれば議事録を返す。
@@ -147,7 +147,7 @@ func (r *Room) waitRotateLocked(ctx context.Context, a *Agent) (job *minutesJob,
 	if job = r.minutes; job != nil {
 		gen := r.gen
 		prev := a.state
-		a.state, a.since, a.activity = "thinking", time.Now(), "等待纪要生成"
+		a.state, a.since, a.activity = "thinking", time.Now(), "議事録の作成を待っています"
 		r.pushStatusLocked()
 		r.mu.Unlock()
 		select {

@@ -1,7 +1,7 @@
 package main
 
 // プランの残り利用枠の取得と保持。CLI ごとに取得手段が異なるため、取得できた項目だけを保持する。
-//   - Claude Code: `claude -p "/cost"` の標準出力（作者向けテキスト）をパースする
+//   - Claude Code: `claude -p "/cost"` の標準出力（人間向けテキスト）をパースする
 //   - Codex CLI:   `codex app-server` の JSON-RPC `account/rateLimits/read`
 //   - Antigravity: `agy -p "/credits"` の標準出力（クレジット残高のみ。利用枠の使用率は取得できない）
 // 取得に失敗しても前回値は消さず、失敗理由を添えて「古い情報」として残す。
@@ -47,24 +47,24 @@ func (q Quota) has() bool { return len(q.Windows) > 0 || q.Credits != "" }
 func (q Quota) summary() string {
 	if !q.has() {
 		if q.Error != "" {
-			return "未知（获取失败: " + q.Error + "）"
+			return "不明（取得に失敗: " + q.Error + "）"
 		}
-		return "未知"
+		return "不明"
 	}
 	var parts []string
 	for _, w := range q.Windows {
-		s := fmt.Sprintf("%s %.0f%% 已用", w.Label, w.UsedPercent)
+		s := fmt.Sprintf("%s %.0f%%使用", w.Label, w.UsedPercent)
 		if w.Resets != "" {
-			s += "（重置 " + w.Resets + "）"
+			s += "（リセット " + w.Resets + "）"
 		}
 		parts = append(parts, s)
 	}
 	if q.Credits != "" {
-		parts = append(parts, "积分余额 "+q.Credits+"（这是额外积分的余额，不是常规额度的剩余比例）")
+		parts = append(parts, "クレジット残高 "+q.Credits+"（追加クレジットの残高で、通常の利用枠の残率ではありません）")
 	}
-	s := strings.Join(parts, " / ") + "。获取于 " + q.Fetched
+	s := strings.Join(parts, " / ") + "。取得 " + q.Fetched
 	if q.Error != "" {
-		s += "。最近一次获取失败，为旧值（" + q.Error + "）"
+		s += "。最新の取得に失敗したため古い値です（" + q.Error + "）"
 	}
 	return s
 }
@@ -88,7 +88,7 @@ func (a *claudeAdapter) FetchQuota(ctx context.Context, cwd string) (Quota, erro
 	}
 	ws := parseClaudeCost(r.stdout)
 	if len(ws) == 0 {
-		return Quota{}, errors.New("/cost 的输出里没有额度行（格式可能已变）")
+		return Quota{}, errors.New("/cost の出力に利用枠の行が見つかりません（形式が変わった可能性があります）")
 	}
 	return Quota{Windows: ws, Source: `claude -p "/cost"`}, nil
 }
@@ -130,7 +130,7 @@ func (a *codexAdapter) FetchQuota(ctx context.Context, cwd string) (Quota, error
 	cmd := exec.Command(a.bin, args...)
 	cmd.Dir = cwd
 	hideWindow(cmd)
-	newProcessGroup(cmd) // 超时の killTree で子プロセスまで終了させる（Windows 以外）
+	newProcessGroup(cmd) // 時間切れの killTree で子プロセスまで終了させる（Windows 以外）
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return Quota{}, err
@@ -140,7 +140,7 @@ func (a *codexAdapter) FetchQuota(ctx context.Context, cwd string) (Quota, error
 		return Quota{}, err
 	}
 	if err := cmd.Start(); err != nil {
-		return Quota{}, &AgentError{ErrAgentUnavailable, fmt.Sprintf("无法启动 codex app-server: %v", err)}
+		return Quota{}, &AgentError{ErrAgentUnavailable, fmt.Sprintf("codex app-server を起動できません: %v", err)}
 	}
 	done := make(chan struct{})
 	defer func() { // 取得が済んだら（タイムアウト時も）子プロセスを残さない
@@ -166,7 +166,7 @@ func (a *codexAdapter) FetchQuota(ctx context.Context, cwd string) (Quota, error
 			}
 		}
 		select {
-		case ch <- reply{err: errors.New("收到响应前 app-server 已退出")}:
+		case ch <- reply{err: errors.New("応答を受け取る前に app-server が終了しました")}:
 		case <-done:
 		}
 	}()
@@ -188,7 +188,7 @@ func (a *codexAdapter) FetchQuota(ctx context.Context, cwd string) (Quota, error
 		}
 		return Quota{Windows: rp.ws, Source: "codex app-server account/rateLimits/read"}, nil
 	case <-ctx.Done():
-		return Quota{}, &AgentError{ErrAgentTimeout, fmt.Sprintf("%v 内没有响应", quotaTimeout)}
+		return Quota{}, &AgentError{ErrAgentTimeout, fmt.Sprintf("%v 以内に応答がありませんでした", quotaTimeout)}
 	}
 }
 
@@ -210,7 +210,7 @@ func parseCodexRateLimits(line []byte) (ws []QuotaWindow, isReply bool, err erro
 		return nil, true, errors.New(m.Error.Message)
 	}
 	if m.Result == nil || m.Result.RateLimits == nil {
-		return nil, true, errors.New("响应里没有 rateLimits")
+		return nil, true, errors.New("応答に rateLimits がありません")
 	}
 	for _, w := range []*codexRateWindow{m.Result.RateLimits.Primary, m.Result.RateLimits.Secondary} {
 		if w == nil {
@@ -223,7 +223,7 @@ func parseCodexRateLimits(line []byte) (ws []QuotaWindow, isReply bool, err erro
 		ws = append(ws, qw)
 	}
 	if len(ws) == 0 {
-		return nil, true, errors.New("响应里没有额度")
+		return nil, true, errors.New("応答に利用枠がありません")
 	}
 	return ws, true, nil
 }
@@ -231,17 +231,17 @@ func parseCodexRateLimits(line []byte) (ws []QuotaWindow, isReply bool, err erro
 func codexWindowLabel(mins int) string {
 	switch {
 	case mins == 300:
-		return "5 小时额度"
+		return "5時間枠"
 	case mins == 10080:
-		return "周额度"
+		return "週枠"
 	case mins > 0 && mins%1440 == 0:
-		return fmt.Sprintf("%d 天额度", mins/1440)
+		return fmt.Sprintf("%d日枠", mins/1440)
 	case mins > 0 && mins%60 == 0:
-		return fmt.Sprintf("%d 小时额度", mins/60)
+		return fmt.Sprintf("%d時間枠", mins/60)
 	case mins > 0:
-		return fmt.Sprintf("%d 分钟额度", mins)
+		return fmt.Sprintf("%d分枠", mins)
 	}
-	return "额度"
+	return "利用枠"
 }
 
 // ---- Antigravity ------------------------------------------------------------
@@ -258,7 +258,7 @@ func (a *agyAdapter) FetchQuota(ctx context.Context, cwd string) (Quota, error) 
 	}
 	c, ok := parseAgyCredits(r.stdout)
 	if !ok {
-		return Quota{}, errors.New("/credits 的输出里没有积分余额（格式可能已变）")
+		return Quota{}, errors.New("/credits の出力にクレジット残高が見つかりません（形式が変わった可能性があります）")
 	}
 	return Quota{Credits: c, Source: `agy -p "/credits"`}, nil
 }
@@ -312,7 +312,7 @@ func (r *Room) refreshQuota(a *Agent, force bool) {
 	r.pushStatusLocked()
 }
 
-// refreshQuotas は起動時に、全エージェントの利用枠を並行して取得する。定期的な取得はしない（2026-10-01 作者の判断）。
+// refreshQuotas は起動時に、全エージェントの利用枠を並行して取得する。定期的な取得はしない（2026-10-01 人間の判断）。
 // 利用枠はターンの終了時・再開時・エージェントの追加時にも取り直すので、動いているエージェントの値は新しいまま保たれる。
 // 一時停止中のエージェント（利用枠の上限で止まったものを含む）は取得しない。CLI の起動を減らすため
 // （Antigravity は起動のたびに自動更新のプロセスを切り離して起動し、その子が窓を一瞬出すことがある）

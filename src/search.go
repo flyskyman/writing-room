@@ -45,7 +45,7 @@ const (
 	snippetContext     = 60 // 一致箇所の前後に付ける文字数
 )
 
-var ErrEmptyQuery = errors.New("搜索词为空")
+var ErrEmptyQuery = errors.New("検索する語が空です")
 
 // SearchMessages は過去ログと現在の会話を横断して query を含む発言を探す。
 // query は大文字小文字を区別しない部分一致。from が空でなければ、その発言者（human / system / エージェントID）に絞る。
@@ -173,9 +173,9 @@ func (r *Room) ExportMarkdown(name string) (string, error) {
 		}
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "# 对话日志 %s\n\n", name)
+	fmt.Fprintf(&b, "# 会話ログ %s\n\n", name)
 	fmt.Fprintf(&b, "- 期間: %s 〜 %s\n", msgs[0].Time, msgs[len(msgs)-1].Time)
-	fmt.Fprintf(&b, "- 发言数: %d（不含系统消息）/ 共 %d 条\n\n", count, len(msgs))
+	fmt.Fprintf(&b, "- 発言数: %d（システムメッセージを除く）/ 全 %d 件\n\n", count, len(msgs))
 	for _, m := range msgs {
 		who := m.Name
 		if who == "" {
@@ -191,10 +191,10 @@ func (r *Room) ExportMarkdown(name string) (string, error) {
 		fmt.Fprintf(&b, "## %s — %s\n\n", title, m.Time)
 		var notes []string
 		if m.ReplyTo > 0 {
-			notes = append(notes, fmt.Sprintf("回复 #%d", m.ReplyTo))
+			notes = append(notes, fmt.Sprintf("#%d への返信", m.ReplyTo))
 		}
 		if m.ReadUpTo > 0 {
-			notes = append(notes, fmt.Sprintf("读到 #%d", m.ReadUpTo))
+			notes = append(notes, fmt.Sprintf("#%d まで読了", m.ReadUpTo))
 		}
 		if len(notes) > 0 {
 			fmt.Fprintf(&b, "> %s\n\n", strings.Join(notes, "、"))

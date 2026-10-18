@@ -309,7 +309,7 @@ func TestCommandNotifyTarget(t *testing.T) {
 	noLeader := r.commandNotifyTargetLocked(res)
 	r.mu.Unlock()
 	if target != "x" || noLeader != "" {
-		t.Fatalf("呼び出す相手 %q / 進行役なし・作者の発言 %q", target, noLeader)
+		t.Fatalf("呼び出す相手 %q / 進行役なし・人間の発言 %q", target, noLeader)
 	}
 }
 
@@ -321,7 +321,7 @@ func TestRedactSecrets(t *testing.T) {
 			t.Errorf("伏せ字になっていない: %q\n%s", s, out)
 		}
 	}
-	if !strings.Contains(out, "aws_secret_access_key = [已脱敏]") || !strings.Contains(out, "normal line") {
+	if !strings.Contains(out, "aws_secret_access_key = [伏せ字]") || !strings.Contains(out, "normal line") {
 		t.Errorf("キー名や通常の行が残っていない:\n%s", out)
 	}
 }
@@ -335,7 +335,7 @@ func TestCommandTail(t *testing.T) {
 	if n := strings.Count(got, "\n"); n != commandTailLines {
 		t.Fatalf("行数 %d", n)
 	}
-	if !strings.HasPrefix(got, "…（省略开头 70 行）") {
+	if !strings.HasPrefix(got, "…（先頭の 70 行を省略）") {
 		t.Fatalf("省略の表示がない: %q", got[:40])
 	}
 }
@@ -419,24 +419,24 @@ func TestRunBlockAuto(t *testing.T) {
 	r.leader = "x"
 	auto := CommandRequest{Auto: true}
 
-	// 禁止ルールを渡せないエージェントの発言は、進行役でも自动は実行しない
+	// 禁止ルールを渡せないエージェントの発言は、進行役でも自動では実行しない
 	m := postChat(r, "x", "```cmd\necho 1\n```")
 	if _, err := r.RunBlock(m.ID, 0, auto); !errors.Is(err, ErrCommandConfirm) {
-		t.Fatalf("禁止ルールを渡せないエージェントのブロックを自动実行した: %v", err)
+		t.Fatalf("禁止ルールを渡せないエージェントのブロックを自動で実行した: %v", err)
 	}
 	a.Adapter = denyAdapter{}
-	// 保護するパスに触れるブロックは自动は実行しない
+	// 保護するパスに触れるブロックは自動では実行しない
 	m = postChat(r, "x", "```cmd\ntype .claude/settings.json\n```")
 	if _, err := r.RunBlock(m.ID, 0, auto); !errors.Is(err, ErrCommandConfirm) {
-		t.Fatalf("保護するパスに触れるブロックを自动実行した: %v", err)
+		t.Fatalf("保護するパスに触れるブロックを自動で実行した: %v", err)
 	}
-	// 進行役以外の発言は、確認の印があっても自动は実行しない
+	// 進行役以外の発言は、確認の印があっても自動では実行しない
 	r.leader = ""
 	m = postChat(r, "x", "```cmd\necho 1\n```")
 	if _, err := r.RunBlock(m.ID, 0, CommandRequest{Auto: true, Confirm: true}); !errors.Is(err, ErrCommandConfirm) {
-		t.Fatalf("進行役以外のブロックを自动実行した: %v", err)
+		t.Fatalf("進行役以外のブロックを自動で実行した: %v", err)
 	}
-	// 条件を満たせば実行し、開始の発言に自动実行したことを残す
+	// 条件を満たせば実行し、開始の発言に自動で実行したことを残す
 	r.leader = "x"
 	if _, err := r.RunBlock(m.ID, 0, auto); err != nil {
 		t.Fatal(err)
@@ -444,7 +444,7 @@ func TestRunBlockAuto(t *testing.T) {
 	r.mu.Lock()
 	start := r.messages[len(r.messages)-1]
 	r.mu.Unlock()
-	if !strings.Contains(start.Text, "自动実行し始めました") {
+	if !strings.Contains(start.Text, "自動で実行し始めました") {
 		t.Fatalf("開始の発言 %q", start.Text)
 	}
 	waitCommand(t, r, m.ID, 0)

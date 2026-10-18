@@ -1,8 +1,8 @@
 package main
 
-// CLI の診断（強化案 6）。作者が設定ダイアログの［診断］を押したときだけ、各エージェントの CLI を --version で起動し、
-// 見つからない・起動に失敗した・超时・取得できた（バージョン）を区別して返す。起動時には自动実行しない。
-// 起動は runProcess を使うので、窓を出さず（hideWindow）、超时ならプロセスツリーごと終了させる。
+// CLI の診断（強化案 6）。人間が設定ダイアログの［診断］を押したときだけ、各エージェントの CLI を --version で起動し、
+// 見つからない・起動に失敗した・時間切れ・取得できた（バージョン）を区別して返す。起動時には自動で実行しない。
+// 起動は runProcess を使うので、窓を出さず（hideWindow）、時間切れならプロセスツリーごと終了させる。
 
 import (
 	"context"
@@ -69,7 +69,7 @@ func diagnoseAgent(ctx context.Context, a *Agent, cwd string) DiagResult {
 	}
 	bin, args := vc.versionCommand()
 	if bin == "" {
-		d.Status, d.Detail = "not_found", "找不到可执行文件（请检查 PATH 或 *_BIN）"
+		d.Status, d.Detail = "not_found", "実行ファイルが見つかりません（PATH または *_BIN を確認してください）"
 		return d
 	}
 	d.Bin = bin
@@ -105,7 +105,7 @@ func firstLine(outs ...string) string {
 	return ""
 }
 
-// handleDiag は各 CLI を診断して結果を返す（作者が［診断］を押したときだけ呼ばれる）
+// handleDiag は各 CLI を診断して結果を返す（人間が［診断］を押したときだけ呼ばれる）
 func (room *Room) handleDiag(w http.ResponseWriter, r *http.Request) {
 	writeData(w, http.StatusOK, room.Diagnose(r.Context()))
 }
